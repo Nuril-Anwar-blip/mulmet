@@ -144,6 +144,20 @@ class BankService {
     }
 
     if (rows.isEmpty) {
+      // Probe to distinguish wrong credentials vs. inaccessible table (RLS / no data).
+      bool tableHasRows = false;
+      try {
+        final probe = await _client.from('user').select('id').limit(1);
+        tableHasRows = probe.isNotEmpty;
+      } catch (probeError) {
+        throw _friendlyError(probeError);
+      }
+      if (!tableHasRows) {
+        throw Exception(
+          'Database belum diinisialisasi atau akses ditolak. '
+          'Jalankan supabase/schema.sql di Supabase SQL Editor.',
+        );
+      }
       throw Exception('Username atau email tidak ditemukan.');
     }
 
