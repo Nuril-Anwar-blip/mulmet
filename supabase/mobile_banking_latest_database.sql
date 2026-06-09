@@ -172,11 +172,11 @@ begin
 
   update public.account
   set balance = balance - (p_amount + p_fee)
-  where id = v_sender.id;
+  where account.id = v_sender.id;
 
   update public.account
   set balance = balance + p_amount
-  where id = v_receiver.id;
+  where account.id = v_receiver.id;
 
   v_transaction_id := 'TRX-' || extract(epoch from clock_timestamp())::bigint || '-' || floor(random() * 10000)::int;
   v_reference := 'TRF-' || extract(epoch from clock_timestamp())::bigint || floor(random() * 10000)::int;
