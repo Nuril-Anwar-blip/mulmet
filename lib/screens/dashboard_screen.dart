@@ -334,7 +334,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    '${_account?.bankName ?? 'Mandiri'} Utama - ${_maskAccount(_account?.accountNumber)}',
+                    '${_account?.bankName ?? 'Mandiri'} Utama - ${_account?.accountNumber ?? ''}',
                     style: GoogleFonts.hankenGrotesk(
                       fontSize: 13,
                       color: Colors.white.withValues(alpha: 0.9),
