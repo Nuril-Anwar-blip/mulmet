@@ -1,9 +1,20 @@
--- Schema Bank Mandiri untuk aplikasi Flutter.
--- Jalankan file ini di Supabase SQL Editor untuk database baru.
+-- Jalankan file ini di Supabase SQL Editor untuk database yang sudah terlanjur
+-- punya tabel ganda: User/Account/Transaction/LoginLog/Favorite dan
+-- user/account/transaction/loginlog/favorite.
 --
--- Flutter memakai tabel lowercase berikut:
+-- Tabel yang dipakai Flutter adalah lowercase:
 -- user, account, transaction, loginlog, favorite.
 
+-- 1) Hapus tabel uppercase/camelCase yang tidak dipakai Flutter.
+-- Jangan ubah menjadi public.User tanpa tanda kutip, karena itu bisa mengarah
+-- ke tabel lowercase di PostgreSQL.
+drop table if exists public."Transaction" cascade;
+drop table if exists public."Favorite" cascade;
+drop table if exists public."LoginLog" cascade;
+drop table if exists public."Account" cascade;
+drop table if exists public."User" cascade;
+
+-- 2) Pastikan tabel lowercase yang dipakai Flutter tersedia.
 create table if not exists public.user (
   id text not null,
   username text not null unique,
@@ -66,7 +77,7 @@ create index if not exists transaction_receiver_idx on public.transaction(receiv
 create index if not exists favorite_userid_idx on public.favorite(userid);
 create index if not exists loginlog_userid_idx on public.loginlog(userid);
 
--- Mode demo tanpa Supabase Auth.
+-- 3) Buka akses untuk mode demo tanpa Supabase Auth.
 alter table if exists public.user disable row level security;
 alter table if exists public.account disable row level security;
 alter table if exists public.transaction disable row level security;
@@ -80,38 +91,29 @@ grant select, insert, update, delete on table public.transaction to anon, authen
 grant select, insert, update, delete on table public.loginlog to anon, authenticated;
 grant select, insert, update, delete on table public.favorite to anon, authenticated;
 
--- Data dummy. Semua password: 12341234.
+-- 4) Bersihkan data dummy lama dari script ini saja, lalu isi data dummy baru.
+delete from public.transaction where id like 'TRX-DEMO-%';
+delete from public.favorite where id like 'FAV-DEMO-%';
+delete from public.account where id like 'ACC-DEMO-%';
+delete from public.user where id like 'USR-DEMO-%';
+
+-- Semua password dummy: 12341234.
 insert into public.user (id, username, password, email, fullname, updatedat)
 values
   ('USR-DEMO-NURIL', 'nuril', '12341234', 'nurilaja@gmail.com', 'Nuril Anwar', current_timestamp),
   ('USR-DEMO-AHMAD', 'ahmad', '12341234', 'ahmad@example.com', 'Ahmad Syarifuddin', current_timestamp),
-  ('USR-DEMO-SISKA', 'siska', '12341234', 'siska@example.com', 'Siska Amelia', current_timestamp)
-on conflict (id) do update set
-  username = excluded.username,
-  password = excluded.password,
-  email = excluded.email,
-  fullname = excluded.fullname,
-  updatedat = current_timestamp;
+  ('USR-DEMO-SISKA', 'siska', '12341234', 'siska@example.com', 'Siska Amelia', current_timestamp);
 
 insert into public.account (id, userid, accountnumber, balance, bankname)
 values
   ('ACC-DEMO-NURIL', 'USR-DEMO-NURIL', '1234567890', 12450000, 'Mandiri'),
   ('ACC-DEMO-AHMAD', 'USR-DEMO-AHMAD', '8290012345', 5000000, 'Mandiri'),
-  ('ACC-DEMO-SISKA', 'USR-DEMO-SISKA', '8820123456', 3500000, 'Mandiri')
-on conflict (accountnumber) do update set
-  userid = excluded.userid,
-  balance = excluded.balance,
-  bankname = excluded.bankname;
+  ('ACC-DEMO-SISKA', 'USR-DEMO-SISKA', '8820123456', 3500000, 'Mandiri');
 
 insert into public.favorite (id, userid, name, accountnumber, bankname)
 values
   ('FAV-DEMO-AHMAD', 'USR-DEMO-NURIL', 'Ahmad Syarifuddin', '8290012345', 'Mandiri'),
-  ('FAV-DEMO-SISKA', 'USR-DEMO-NURIL', 'Siska Amelia', '8820123456', 'Mandiri')
-on conflict (id) do update set
-  userid = excluded.userid,
-  name = excluded.name,
-  accountnumber = excluded.accountnumber,
-  bankname = excluded.bankname;
+  ('FAV-DEMO-SISKA', 'USR-DEMO-NURIL', 'Siska Amelia', '8820123456', 'Mandiri');
 
 insert into public.transaction (
   id,
@@ -146,12 +148,4 @@ values
     'SUCCESS',
     'REF-DEMO-002',
     current_timestamp - interval '1 day'
-  )
-on conflict (referencenumber) do update set
-  senderaccountid = excluded.senderaccountid,
-  receiveraccountid = excluded.receiveraccountid,
-  amount = excluded.amount,
-  fee = excluded.fee,
-  note = excluded.note,
-  status = excluded.status,
-  createdat = excluded.createdat;
+  );
