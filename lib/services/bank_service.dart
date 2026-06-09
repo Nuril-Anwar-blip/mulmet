@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/models.dart';
@@ -25,6 +26,7 @@ class SessionManager {
 class BankService {
   BankService._();
 
+  static const _sessionUserIdKey = 'current_user_id';
   static final _client = Supabase.instance.client;
   static final _dateFormatter = DateFormat('dd MMM', 'id_ID');
   static final _timeFormatter = DateFormat('HH:mm', 'id_ID');
@@ -47,6 +49,10 @@ class BankService {
     return List.generate(10, (_) => random.nextInt(10)).join();
   }
 
+  static String _cleanAccountNumber(String accountNumber) {
+    return accountNumber.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
   static Exception _friendlyError(Object error) {
     final message = error.toString();
     if (message.contains('PGRST205') ||
@@ -54,6 +60,29 @@ class BankService {
       return Exception(
         'Tabel Supabase belum dibuat. Jalankan supabase/schema.sql di Supabase SQL Editor.',
       );
+    }
+    if (message.contains('PGRST202') ||
+        message.contains('create_transfer_atomic') ||
+        message.contains('Could not find the function')) {
+      return Exception(
+        'Function transfer belum dibuat. Jalankan supabase/mobile_banking_latest_database.sql di Supabase SQL Editor.',
+      );
+    }
+    if (message.contains('column') && message.contains('does not exist')) {
+      return Exception(
+        'Struktur database belum terbaru. Jalankan supabase/mobile_banking_latest_database.sql di Supabase SQL Editor.',
+      );
+    }
+    if (message.contains('23505') ||
+        message.contains('duplicate key') ||
+        message.contains('already exists')) {
+      if (message.contains('email')) {
+        return Exception('Email sudah terdaftar. Gunakan email lain atau login.');
+      }
+      if (message.contains('username')) {
+        return Exception('Username sudah terdaftar. Gunakan email lain.');
+      }
+      return Exception('Data sudah ada di database.');
     }
     if (message.contains('row-level security') ||
         message.contains('Unauthorized') ||
@@ -63,6 +92,39 @@ class BankService {
       );
     }
     return Exception(message.replaceFirst('Exception: ', ''));
+  }
+
+  static Future<void> _persistSession(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_sessionUserIdKey, userId);
+  }
+
+  static Future<bool> restoreSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString(_sessionUserIdKey);
+    if (userId == null || userId.isEmpty) return false;
+
+    try {
+      final userRow =
+          await _client.from('user').select().eq('id', userId).limit(1).maybeSingle();
+      if (userRow == null) {
+        await prefs.remove(_sessionUserIdKey);
+        return false;
+      }
+
+      final user = _userFromRow(Map<String, dynamic>.from(userRow));
+      final account = await getPrimaryAccount(user.id);
+      SessionManager.setSession(user, account);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> logout() async {
+    SessionManager.clear();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_sessionUserIdKey);
   }
 
   static Future<AppUser> login({
@@ -95,6 +157,7 @@ class BankService {
     final user = _userFromRow(row);
     final account = await getPrimaryAccount(user.id);
     SessionManager.setSession(user, account);
+    await _persistSession(user.id);
     await _logLogin(user.id);
     return user;
   }
@@ -119,6 +182,8 @@ class BankService {
             'password': _hashPassword(password),
             'email': email.trim(),
             'fullname': fullName.trim(),
+            'phone': phone?.trim(),
+            'transactionpin': '123456',
             'updatedat': now,
           })
           .select()
@@ -142,6 +207,7 @@ class BankService {
     final user = _userFromRow(Map<String, dynamic>.from(userRow));
     final account = _accountFromRow(Map<String, dynamic>.from(accountRow));
     SessionManager.setSession(user, account);
+    await _persistSession(user.id);
     return user;
   }
 
@@ -151,6 +217,7 @@ class BankService {
       username: row['username'] as String,
       email: row['email'] as String,
       fullName: row['fullname'] as String,
+      phone: row['phone'] as String?,
     );
   }
 
@@ -242,52 +309,176 @@ class BankService {
     }).toList();
   }
 
+  static Future<AppUser> updateProfile({
+    required String email,
+    String? phone,
+  }) async {
+    final user = SessionManager.currentUser;
+    if (user == null) {
+      throw Exception('Sesi tidak ditemukan. Silakan login ulang.');
+    }
+
+    try {
+      final row = await _client
+          .from('user')
+          .update({
+            'email': email.trim(),
+            'phone': phone?.trim(),
+            'updatedat': DateTime.now().toIso8601String(),
+          })
+          .eq('id', user.id)
+          .select()
+          .single();
+      final updatedUser = _userFromRow(Map<String, dynamic>.from(row));
+      SessionManager.setSession(updatedUser, SessionManager.currentAccount);
+      await _persistSession(updatedUser.id);
+      return updatedUser;
+    } catch (error) {
+      throw _friendlyError(error);
+    }
+  }
+
+  static Future<bool> verifyTransactionPin(String pin) async {
+    final user = SessionManager.currentUser;
+    if (user == null) {
+      throw Exception('Sesi tidak ditemukan. Silakan login ulang.');
+    }
+    if (pin.length != 6) return false;
+
+    try {
+      final row = await _client
+          .from('user')
+          .select('transactionpin')
+          .eq('id', user.id)
+          .single();
+      final savedPin = (row['transactionpin'] as String?) ?? '123456';
+      return pin == savedPin;
+    } catch (error) {
+      throw _friendlyError(error);
+    }
+  }
+
+  static Future<void> changeTransactionPin({
+    required String oldPin,
+    required String newPin,
+  }) async {
+    if (!await verifyTransactionPin(oldPin)) {
+      throw Exception('PIN lama salah.');
+    }
+    final user = SessionManager.currentUser;
+    if (user == null) {
+      throw Exception('Sesi tidak ditemukan. Silakan login ulang.');
+    }
+
+    try {
+      await _client
+          .from('user')
+          .update({'transactionpin': newPin, 'updatedat': DateTime.now().toIso8601String()})
+          .eq('id', user.id);
+    } catch (error) {
+      throw _friendlyError(error);
+    }
+  }
+
+  static Future<VerifiedAccount> verifyRecipientAccount({
+    required String accountNumber,
+    required String bankName,
+  }) async {
+    try {
+      final accountRow = await _client
+          .from('account')
+          .select()
+          .eq('accountnumber', _cleanAccountNumber(accountNumber))
+          .eq('bankname', bankName.trim())
+          .limit(1)
+          .maybeSingle();
+
+      if (accountRow == null) {
+        throw Exception('Rekening tujuan tidak ditemukan di database.');
+      }
+
+      final account = Map<String, dynamic>.from(accountRow);
+      final userRow = await _client
+          .from('user')
+          .select('fullname')
+          .eq('id', account['userid'] as String)
+          .limit(1)
+          .maybeSingle();
+      final ownerName = userRow == null
+          ? 'Nasabah Mandiri'
+          : (Map<String, dynamic>.from(userRow)['fullname'] as String);
+
+      return VerifiedAccount(
+        accountId: account['id'] as String,
+        userId: account['userid'] as String,
+        accountNumber: account['accountnumber'] as String,
+        bankName: account['bankname'] as String,
+        ownerName: ownerName,
+      );
+    } catch (error) {
+      if (error.toString().contains('Rekening tujuan tidak ditemukan')) {
+        rethrow;
+      }
+      throw _friendlyError(error);
+    }
+  }
+
+  static Future<void> addFavoriteRecipient(VerifiedAccount recipient) async {
+    final user = SessionManager.currentUser;
+    if (user == null) {
+      throw Exception('Sesi tidak ditemukan. Silakan login ulang.');
+    }
+
+    try {
+      await _client.from('favorite').upsert({
+        'id': 'FAV-${user.id}-${recipient.accountNumber}',
+        'userid': user.id,
+        'name': recipient.ownerName,
+        'accountnumber': recipient.accountNumber,
+        'bankname': recipient.bankName,
+      });
+    } catch (error) {
+      throw _friendlyError(error);
+    }
+  }
+
   static Future<Transaction> createTransfer(TransferDraft draft) async {
     final sender = SessionManager.currentAccount;
     if (sender == null) {
       throw Exception('Rekening sumber tidak ditemukan. Silakan login ulang.');
     }
 
-    final receiverRows = await _client
-        .from('account')
-        .select()
-        .eq('accountnumber', draft.receiverAccountNumber)
-        .eq('bankname', draft.receiverBankName)
-        .limit(1);
-
-    if (receiverRows.isEmpty) {
-      throw Exception('Rekening tujuan tidak ditemukan di database.');
+    late final VerifiedAccount receiver;
+    try {
+      receiver = await verifyRecipientAccount(
+        accountNumber: draft.receiverAccountNumber,
+        bankName: draft.receiverBankName,
+      );
+    } catch (error) {
+      rethrow;
     }
 
-    final receiver =
-        _accountFromRow(Map<String, dynamic>.from(receiverRows.first as Map));
-    final total = draft.amount + draft.fee;
-    if (sender.balance < total) {
-      throw Exception('Saldo tidak mencukupi.');
+    late final Map<String, dynamic> row;
+    try {
+      final response = await _client.rpc('create_transfer_atomic', params: {
+        'p_sender_account_id': sender.id,
+        'p_receiver_account_number': _cleanAccountNumber(draft.receiverAccountNumber),
+        'p_receiver_bank_name': draft.receiverBankName,
+        'p_amount': draft.amount,
+        'p_fee': draft.fee,
+        'p_note': draft.note,
+      });
+
+      if (response is List && response.isNotEmpty) {
+        row = Map<String, dynamic>.from(response.first as Map);
+      } else if (response is Map) {
+        row = Map<String, dynamic>.from(response);
+      } else {
+        throw Exception('Transaksi gagal dibuat.');
+      }
+    } catch (error) {
+      throw _friendlyError(error);
     }
-
-    await _client
-        .from('account')
-        .update({'balance': sender.balance - total}).eq('id', sender.id);
-    await _client
-        .from('account')
-        .update({'balance': receiver.balance + draft.amount}).eq('id', receiver.id);
-
-    final referenceNumber = 'TRF-${DateTime.now().millisecondsSinceEpoch}';
-    final row = await _client
-        .from('transaction')
-        .insert({
-          'id': _id('TRX'),
-          'senderaccountid': sender.id,
-          'receiveraccountid': receiver.id,
-          'amount': draft.amount,
-          'fee': draft.fee,
-          'note': draft.note,
-          'status': 'SUCCESS',
-          'referencenumber': referenceNumber,
-        })
-        .select()
-        .single();
 
     final updatedSender = await getPrimaryAccount(sender.userId);
     if (updatedSender != null && SessionManager.currentUser != null) {
@@ -296,7 +487,7 @@ class BankService {
 
     final createdAt = DateTime.parse(row['createdat'] as String).toLocal();
     return Transaction(
-      id: referenceNumber,
+      id: row['referencenumber'] as String,
       title: 'Transfer Keluar',
       subtitle:
           '${_dateFormatter.format(createdAt)} • ${_timeFormatter.format(createdAt)}',
@@ -305,6 +496,7 @@ class BankService {
       date: _dateFormatter.format(createdAt),
       category: 'Transfer',
       status: 'Berhasil',
+      recipientName: draft.receiverName ?? receiver.ownerName,
       recipientAccount: '${receiver.bankName} - ${receiver.accountNumber}',
       recipientBank: receiver.bankName,
     );

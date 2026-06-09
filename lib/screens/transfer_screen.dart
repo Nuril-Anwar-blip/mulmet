@@ -24,6 +24,8 @@ class _TransferScreenState extends State<TransferScreen> {
   String _selectedBank = 'Mandiri';
   BankAccount? _account = SessionManager.currentAccount;
   List<FavoriteRecipient> _favoriteRecipients = [];
+  VerifiedAccount? _verifiedRecipient;
+  bool _isVerifyingRecipient = false;
   final _formatter =
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
@@ -87,13 +89,40 @@ class _TransferScreenState extends State<TransferScreen> {
     } catch (_) {}
   }
 
-  void _continueToConfirmation() {
+  Future<void> _continueToConfirmation() async {
     final amount =
         double.tryParse(_nominalController.text.replaceAll(RegExp(r'[^0-9]'), '')) ??
             0;
     if (_accountController.text.trim().isEmpty || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Lengkapi rekening tujuan dan nominal.')),
+      );
+      return;
+    }
+    if (_accountController.text.trim() == _account?.accountNumber) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak bisa transfer ke rekening sendiri.')),
+      );
+      return;
+    }
+
+    setState(() => _isVerifyingRecipient = true);
+    late final VerifiedAccount recipient;
+    try {
+      recipient = await BankService.verifyRecipientAccount(
+        accountNumber: _accountController.text.trim(),
+        bankName: _selectedBank,
+      );
+      if (!mounted) return;
+      setState(() {
+        _verifiedRecipient = recipient;
+        _isVerifyingRecipient = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isVerifyingRecipient = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
       );
       return;
     }
@@ -105,6 +134,7 @@ class _TransferScreenState extends State<TransferScreen> {
           draft: TransferDraft(
             receiverAccountNumber: _accountController.text.trim(),
             receiverBankName: _selectedBank,
+            receiverName: recipient.ownerName,
             amount: amount,
             note: _noteController.text.trim().isEmpty
                 ? null
@@ -118,6 +148,12 @@ class _TransferScreenState extends State<TransferScreen> {
   String _maskAccount(String? accountNumber) {
     if (accountNumber == null || accountNumber.length < 4) return '****';
     return '**** ${accountNumber.substring(accountNumber.length - 4)}';
+  }
+
+  void _showDemoMessage(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$feature belum tersedia untuk mode demo.')),
+    );
   }
 
   @override
@@ -137,7 +173,7 @@ class _TransferScreenState extends State<TransferScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: AppColors.primary),
-            onPressed: () {},
+            onPressed: () => _showDemoMessage('Notifikasi'),
           ),
         ],
       ),
@@ -273,7 +309,7 @@ class _TransferScreenState extends State<TransferScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton.icon(
-                        onPressed: () {},
+                        onPressed: () => _showDemoMessage('Ganti rekening'),
                         icon: Text(
                           'Ganti Rekening',
                           style: GoogleFonts.hankenGrotesk(
@@ -417,7 +453,12 @@ class _TransferScreenState extends State<TransferScreen> {
               context,
               MaterialPageRoute(builder: (_) => const BankSelectScreen()),
             );
-            if (result != null) setState(() => _selectedBank = result);
+            if (result != null) {
+              setState(() {
+                _selectedBank = result;
+                _verifiedRecipient = null;
+              });
+            }
           },
           child: Container(
             height: 56,
@@ -456,7 +497,26 @@ class _TransferScreenState extends State<TransferScreen> {
           hint: 'Masukkan nomor rekening',
           prefixIcon: Icons.dialpad,
           keyboardType: TextInputType.number,
+          onChanged: (_) => setState(() => _verifiedRecipient = null),
         ),
+        if (_verifiedRecipient != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD1FAE5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              'Penerima: ${_verifiedRecipient!.ownerName}',
+              style: GoogleFonts.hankenGrotesk(
+                color: const Color(0xFF047857),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         _buildFormLabel('Nominal'),
         const SizedBox(height: 6),
@@ -561,6 +621,7 @@ class _TransferScreenState extends State<TransferScreen> {
     required String hint,
     required IconData prefixIcon,
     TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
   }) {
     return Container(
       height: 56,
@@ -577,6 +638,7 @@ class _TransferScreenState extends State<TransferScreen> {
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        onChanged: onChanged,
         style: GoogleFonts.hankenGrotesk(fontSize: 16),
         decoration: InputDecoration(
           hintText: hint,
@@ -599,18 +661,22 @@ class _TransferScreenState extends State<TransferScreen> {
           width: double.infinity,
           height: 56,
           child: ElevatedButton.icon(
-            onPressed: _continueToConfirmation,
+            onPressed: _isVerifyingRecipient ? null : _continueToConfirmation,
             icon: const SizedBox.shrink(),
             label: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'Lanjut Ke Konfirmasi',
+                  _isVerifyingRecipient
+                      ? 'Memverifikasi...'
+                      : 'Lanjut Ke Konfirmasi',
                   style: GoogleFonts.hankenGrotesk(
                       fontWeight: FontWeight.w600, fontSize: 15),
                 ),
-                const SizedBox(width: 6),
-                const Icon(Icons.arrow_forward, size: 18),
+                if (!_isVerifyingRecipient) ...[
+                  const SizedBox(width: 6),
+                  const Icon(Icons.arrow_forward, size: 18),
+                ],
               ],
             ),
             style: ElevatedButton.styleFrom(

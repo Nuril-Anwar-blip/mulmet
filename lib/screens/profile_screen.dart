@@ -19,6 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       TextEditingController(text: 'aditya.pratama@email.com');
   final _phoneController =
       TextEditingController(text: '+62 812 3456 7890');
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -26,7 +27,118 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = SessionManager.currentUser;
     if (user != null) {
       _emailController.text = user.email;
+      _phoneController.text = user.phone ?? '';
     }
+  }
+
+  Future<void> _saveProfile() async {
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+    if (!RegExp(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+        .hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Format email belum valid.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      await BankService.updateProfile(email: email, phone: phone);
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Perubahan berhasil disimpan')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _showChangePinDialog() async {
+    final oldPinController = TextEditingController();
+    final newPinController = TextEditingController();
+    final confirmPinController = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Ubah PIN',
+            style: GoogleFonts.hankenGrotesk(fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _pinField(oldPinController, 'PIN Lama'),
+            const SizedBox(height: 10),
+            _pinField(newPinController, 'PIN Baru'),
+            const SizedBox(height: 10),
+            _pinField(confirmPinController, 'Konfirmasi PIN Baru'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final oldPin = oldPinController.text.trim();
+              final newPin = newPinController.text.trim();
+              final confirmPin = confirmPinController.text.trim();
+              if (!RegExp(r'^\d{6}$').hasMatch(newPin)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('PIN baru harus 6 digit angka.')),
+                );
+                return;
+              }
+              if (newPin != confirmPin) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Konfirmasi PIN tidak sama.')),
+                );
+                return;
+              }
+              try {
+                await BankService.changeTransactionPin(
+                  oldPin: oldPin,
+                  newPin: newPin,
+                );
+                if (!mounted) return;
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('PIN berhasil diperbarui.')),
+                );
+              } catch (error) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(error.toString().replaceFirst('Exception: ', '')),
+                  ),
+                );
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+
+    oldPinController.dispose();
+    newPinController.dispose();
+    confirmPinController.dispose();
+  }
+
+  Widget _pinField(TextEditingController controller, String label) {
+    return TextField(
+      controller: controller,
+      obscureText: true,
+      keyboardType: TextInputType.number,
+      maxLength: 6,
+      decoration: InputDecoration(labelText: label, counterText: ''),
+    );
   }
 
   @override
@@ -54,7 +166,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           IconButton(
             icon: const Icon(Icons.notifications_outlined,
                 color: AppColors.primary),
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notifikasi belum tersedia untuk mode demo.')),
+              );
+            },
           ),
         ],
       ),
@@ -188,11 +304,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           width: double.infinity,
           height: 56,
           child: ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Perubahan berhasil disimpan')),
-              );
-            },
+            onPressed: _isSaving ? null : _saveProfile,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -200,7 +312,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   borderRadius: BorderRadius.circular(16)),
               elevation: 2,
             ),
-            child: Text('Simpan Perubahan',
+            child: Text(_isSaving ? 'Menyimpan...' : 'Simpan Perubahan',
                 style: GoogleFonts.hankenGrotesk(
                     fontWeight: FontWeight.w600, fontSize: 15)),
           ),
@@ -300,7 +412,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       borderRadius: BorderRadius.circular(16),
       elevation: 0,
       child: InkWell(
-        onTap: () {},
+        onTap: () {
+          final title = item['title'] as String;
+          if (title == 'Ubah PIN') {
+            _showChangePinDialog();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('$title belum tersedia untuk mode demo.')),
+            );
+          }
+        },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -365,9 +486,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: const Text('Batal'),
                     ),
                     ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         Navigator.pop(ctx);
-                        SessionManager.clear();
+                        await BankService.logout();
+                        if (!mounted) return;
                         Navigator.pushAndRemoveUntil(
                           context,
                           MaterialPageRoute(

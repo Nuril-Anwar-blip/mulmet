@@ -48,7 +48,11 @@ class _BankSelectScreenState extends State<BankSelectScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.help_outline, color: AppColors.primary),
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Pilih bank tujuan, lalu masukkan nomor rekening yang ada di database.')),
+              );
+            },
           ),
         ],
       ),

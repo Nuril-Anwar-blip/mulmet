@@ -35,6 +35,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleRegister() async {
+    final name = _nameController.text.trim();
+    final nik = _nikController.text.trim();
+    final phone = _phoneController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passController.text;
+    final confirmPassword = _confirmPassController.text;
+
+    if (name.isEmpty ||
+        nik.isEmpty ||
+        phone.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lengkapi semua data pendaftaran.')),
+      );
+      return;
+    }
+    if (!RegExp(r'^\d{16}$').hasMatch(nik)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('NIK harus berisi 16 digit angka.')),
+      );
+      return;
+    }
+    if (!RegExp(r'^08\d{8,12}$').hasMatch(phone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nomor telepon harus diawali 08 dan valid.')),
+      );
+      return;
+    }
+    if (!RegExp(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+        .hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Format email belum valid.')),
+      );
+      return;
+    }
+    if (password.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password minimal 8 karakter.')),
+      );
+      return;
+    }
     if (_passController.text != _confirmPassController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Konfirmasi password tidak sama.')),
@@ -45,10 +88,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
     try {
       await BankService.register(
-        fullName: _nameController.text,
-        email: _emailController.text,
-        phone: _phoneController.text,
-        password: _passController.text,
+        fullName: name,
+        email: email,
+        phone: phone,
+        password: password,
       );
       if (!mounted) return;
       setState(() => _isLoading = false);

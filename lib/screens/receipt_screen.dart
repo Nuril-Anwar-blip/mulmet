@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/models.dart';
 import '../services/bank_service.dart';
 import '../theme/app_theme.dart';
@@ -487,12 +488,7 @@ class _ReceiptScreenState extends State<ReceiptScreen>
             width: double.infinity,
             height: 54,
             child: ElevatedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Struk berhasil dibagikan')),
-                );
-              },
+              onPressed: _shareReceipt,
               icon: const Icon(Icons.share_outlined, size: 20),
               label: Text(
                 'Bagikan Struk',
@@ -535,6 +531,22 @@ class _ReceiptScreenState extends State<ReceiptScreen>
         ],
       ),
     );
+  }
+
+  Future<void> _shareReceipt() async {
+    final text = '''
+Resi Transaksi Bank Mandiri
+
+Status: Berhasil
+ID: ${_transaction.id}
+Tanggal: ${_transaction.subtitle}
+Nominal: ${_formatter.format(_transaction.amount)}
+Biaya Admin: ${_formatter.format(_draft.fee)}
+Total Bayar: ${_formatter.format(_transaction.amount + _draft.fee)}
+Tujuan: ${_draft.receiverBankName} - ${_draft.receiverAccountNumber}
+''';
+
+    await Share.share(text.trim(), subject: 'Resi Transaksi ${_transaction.id}');
   }
 }
 

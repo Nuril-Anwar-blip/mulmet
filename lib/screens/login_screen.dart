@@ -51,11 +51,18 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _handleLogin() async {
+    final credential = _usernameController.text.trim();
+    final password = _passwordController.text;
+    if (credential.isEmpty || password.isEmpty) {
+      _showMessage('Username/email dan password wajib diisi.');
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       await BankService.login(
-        usernameOrEmail: _usernameController.text,
-        password: _passwordController.text,
+        usernameOrEmail: credential,
+        password: password,
       );
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -70,6 +77,28 @@ class _LoginScreenState extends State<LoginScreen>
         SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
       );
     }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showForgotPassword() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Lupa Password'),
+        content: const Text(
+          'Untuk mode demo, reset password dilakukan lewat data Supabase atau admin aplikasi.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Mengerti'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -242,7 +271,7 @@ class _LoginScreenState extends State<LoginScreen>
               _buildBiometricToggle(),
               const Spacer(),
               TextButton(
-                onPressed: () {},
+                onPressed: _showForgotPassword,
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
                   minimumSize: Size.zero,
@@ -494,26 +523,29 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildBiometricOption(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: AppColors.primary, size: 32),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: GoogleFonts.hankenGrotesk(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.secondary,
+    return GestureDetector(
+      onTap: () => _showMessage('Biometrik belum aktif. Gunakan password untuk login.'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.outlineVariant),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: AppColors.primary, size: 32),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: GoogleFonts.hankenGrotesk(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.secondary,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
