@@ -18,7 +18,7 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   final _searchController = TextEditingController();
   int? _expandedIndex;
-  List<Transaction> _transactions = dummyTransactions;
+  List<Transaction> _transactions = [];
   bool _isLoading = false;
   final _formatter =
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
@@ -36,20 +36,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _loadTransactions() async {
-    final account = SessionManager.currentAccount;
-    if (account == null) return;
-
     setState(() => _isLoading = true);
     try {
-      final transactions = await BankService.getTransactions(account.id);
+      final user = SessionManager.currentUser;
+      var account = SessionManager.currentAccount;
+      if (account == null && user != null) {
+        account = await BankService.getPrimaryAccount(user.id);
+        if (account != null) {
+          SessionManager.setSession(user, account);
+        }
+      }
+      if (!mounted) return;
+      final transactions = await BankService.getTransactions(account?.id ?? '');
       if (!mounted) return;
       setState(() {
         _transactions = transactions;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
     }
   }
 
@@ -132,12 +143,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-                    children: [
-                      _buildMonthGroup('Transaksi Terbaru', _transactions),
-                    ],
-                  ),
+                : _transactions.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Belum ada transaksi',
+                          style: GoogleFonts.hankenGrotesk(
+                            color: AppColors.outline,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                        children: [
+                          _buildMonthGroup('Transaksi Terbaru', _transactions),
+                        ],
+                      ),
           ),
         ],
       ),
