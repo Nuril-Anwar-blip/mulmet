@@ -274,37 +274,86 @@ class BankService {
   }
 
   static Future<List<Transaction>> getTransactions(String accountId) async {
-    final rows = await _client
-        .from('transaction')
-        .select('*, sender:account!transaction_senderaccountid_fkey(*), receiver:account!transaction_receiveraccountid_fkey(*)')
-        .or('senderaccountid.eq.$accountId,receiveraccountid.eq.$accountId')
-        .order('createdat', ascending: false);
+    late List<dynamic> rows;
+    try {
+      rows = accountId.isEmpty
+          ? <dynamic>[]
+          : await _client
+              .from('transaction')
+              .select()
+              .or('senderaccountid.eq.$accountId,receiveraccountid.eq.$accountId')
+              .order('createdat', ascending: false);
+    } catch (error) {
+      if (!error.toString().contains('createdat')) {
+        throw _friendlyError(error);
+      }
+      rows = accountId.isEmpty
+          ? <dynamic>[]
+          : await _client
+              .from('transaction')
+              .select()
+              .or('senderaccountid.eq.$accountId,receiveraccountid.eq.$accountId');
+    }
+
+    if (rows.isEmpty) {
+      try {
+        rows = await _client
+            .from('transaction')
+            .select()
+            .order('createdat', ascending: false);
+      } catch (error) {
+        if (!error.toString().contains('createdat')) {
+          throw _friendlyError(error);
+        }
+        rows = await _client.from('transaction').select();
+      }
+    }
+
+    final accountIds = <String>{};
+    for (final row in rows) {
+      final map = Map<String, dynamic>.from(row as Map);
+      final senderId = map['senderaccountid'] as String?;
+      final receiverId = map['receiveraccountid'] as String?;
+      if (senderId != null) accountIds.add(senderId);
+      if (receiverId != null) accountIds.add(receiverId);
+    }
+
+    final accountRows = accountIds.isEmpty
+        ? <dynamic>[]
+        : await _client
+            .from('account')
+            .select()
+            .inFilter('id', accountIds.toList());
+    final accountsById = {
+      for (final row in accountRows)
+        (row as Map)['id'] as String: Map<String, dynamic>.from(row),
+    };
 
     return rows.map((row) {
-      final map = Map<String, dynamic>.from(row);
-      final sender = Map<String, dynamic>.from(map['sender'] as Map);
-      final receiver = Map<String, dynamic>.from(map['receiver'] as Map);
+      final map = Map<String, dynamic>.from(row as Map);
       final isCredit = map['receiveraccountid'] == accountId;
-      final createdAt = DateTime.parse(map['createdat'] as String).toLocal();
+      final createdAt = _transactionCreatedAt(map);
+      final sender = accountsById[map['senderaccountid']];
+      final receiver = accountsById[map['receiveraccountid']];
       final counterparty = isCredit ? sender : receiver;
-      final status = (map['status'] as String).toUpperCase() == 'SUCCESS'
-          ? 'Berhasil'
-          : map['status'] as String;
+      final counterpartyBank = counterparty?['bankname'] as String?;
+      final counterpartyNumber = counterparty?['accountnumber'] as String?;
 
       return Transaction(
-        id: map['referencenumber'] as String,
+        id: _stringOrFallback(map['referencenumber'], map['id'] as String),
         title: isCredit ? 'Transfer Masuk' : 'Transfer Keluar',
         subtitle:
             '${_dateFormatter.format(createdAt)} • ${_timeFormatter.format(createdAt)}',
-        amount: (map['amount'] as num).toDouble(),
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
         isCredit: isCredit,
         date: _dateFormatter.format(createdAt),
         category: isCredit ? 'Pemasukan' : 'Transfer',
-        status: status,
-        recipientName: counterparty['bankname'] as String?,
-        recipientAccount:
-            '${counterparty['bankname']} - ${counterparty['accountnumber']}',
-        recipientBank: counterparty['bankname'] as String?,
+        status: _transactionStatus(map['status']),
+        recipientName: counterpartyBank,
+        recipientAccount: counterpartyBank == null || counterpartyNumber == null
+            ? map[isCredit ? 'senderaccountid' : 'receiveraccountid'] as String?
+            : '$counterpartyBank - $counterpartyNumber',
+        recipientBank: counterpartyBank,
       );
     }).toList();
   }
@@ -485,7 +534,7 @@ class BankService {
       SessionManager.setSession(SessionManager.currentUser!, updatedSender);
     }
 
-    final createdAt = DateTime.parse(row['createdat'] as String).toLocal();
+    final createdAt = _transactionCreatedAt(Map<String, dynamic>.from(row));
     return Transaction(
       id: row['referencenumber'] as String,
       title: 'Transfer Keluar',

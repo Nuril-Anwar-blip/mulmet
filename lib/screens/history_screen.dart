@@ -56,20 +56,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _loadTransactions() async {
-    final account = SessionManager.currentAccount;
-    if (account == null) return;
-
     setState(() => _isLoading = true);
     try {
-      final transactions = await BankService.getTransactions(account.id);
+      final user = SessionManager.currentUser;
+      var account = SessionManager.currentAccount;
+      if (account == null && user != null) {
+        account = await BankService.getPrimaryAccount(user.id);
+        if (account != null) {
+          SessionManager.setSession(user, account);
+        }
+      }
+      if (!mounted) return;
+      final transactions = await BankService.getTransactions(account?.id ?? '');
       if (!mounted) return;
       setState(() {
         _transactions = transactions;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
     }
   }
 

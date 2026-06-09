@@ -80,7 +80,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _loadDashboardData() async {
     final user = SessionManager.currentUser;
     final account = SessionManager.currentAccount;
-    if (user == null || account == null) return;
+    if (user == null) return;
 
     try {
       final latestAccount = await BankService.getPrimaryAccount(user.id);
@@ -88,6 +88,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           ? <Transaction>[]
           : await BankService.getTransactions(latestAccount.id);
       if (!mounted) return;
+      if (latestAccount != null) {
+        SessionManager.setSession(user, latestAccount);
+      }
       setState(() {
         _user = user;
         _account = latestAccount;
