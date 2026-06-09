@@ -4,6 +4,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
+import 'services/bank_service.dart';
+import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'supabase_config.dart';
 
@@ -16,6 +18,7 @@ Future<void> main() async {
     url: supabaseUrl,
     publishableKey: supabasePublishableKey,
   );
+  final hasSession = await BankService.restoreSession();
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -29,11 +32,13 @@ Future<void> main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  runApp(const BankMandiriApp());
+  runApp(BankMandiriApp(hasSession: hasSession));
 }
 
 class BankMandiriApp extends StatelessWidget {
-  const BankMandiriApp({super.key});
+  final bool hasSession;
+
+  const BankMandiriApp({super.key, required this.hasSession});
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +46,7 @@ class BankMandiriApp extends StatelessWidget {
       title: 'Bank Mandiri',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const LoginScreen(),
+      home: hasSession ? const DashboardScreen() : const LoginScreen(),
     );
   }
 }

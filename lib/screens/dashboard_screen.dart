@@ -71,6 +71,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
+  void _showDemoMessage(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$feature belum tersedia untuk mode demo.')),
+    );
+  }
+
   Future<void> _loadDashboardData() async {
     final user = SessionManager.currentUser;
     final account = SessionManager.currentAccount;
@@ -190,8 +196,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ],
               ),
               const Spacer(),
-              const Icon(Icons.notifications_outlined,
-                  color: AppColors.primary, size: 26),
+              GestureDetector(
+                onTap: () => _showDemoMessage('Notifikasi'),
+                child: const Icon(Icons.notifications_outlined,
+                    color: AppColors.primary, size: 26),
+              ),
               const SizedBox(width: 12),
               Text(
                 'Bank Mandiri',
@@ -356,6 +365,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             if (a['label'] == 'Transfer') {
               Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const TransferScreen()));
+            } else {
+              _showDemoMessage(a['label'] as String);
             }
           },
           child: Column(

@@ -3,12 +3,14 @@ class AppUser {
   final String username;
   final String email;
   final String fullName;
+  final String? phone;
 
   AppUser({
     required this.id,
     required this.username,
     required this.email,
     required this.fullName,
+    this.phone,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map) {
@@ -16,7 +18,8 @@ class AppUser {
       id: map['id'] as String,
       username: map['username'] as String,
       email: map['email'] as String,
-      fullName: map['fullName'] as String,
+      fullName: (map['fullName'] ?? map['fullname']) as String,
+      phone: map['phone'] as String?,
     );
   }
 }
@@ -70,9 +73,26 @@ class FavoriteRecipient {
   }
 }
 
+class VerifiedAccount {
+  final String accountId;
+  final String userId;
+  final String accountNumber;
+  final String bankName;
+  final String ownerName;
+
+  VerifiedAccount({
+    required this.accountId,
+    required this.userId,
+    required this.accountNumber,
+    required this.bankName,
+    required this.ownerName,
+  });
+}
+
 class TransferDraft {
   final String receiverAccountNumber;
   final String receiverBankName;
+  final String? receiverName;
   final double amount;
   final double fee;
   final String? note;
@@ -80,6 +100,7 @@ class TransferDraft {
   TransferDraft({
     required this.receiverAccountNumber,
     required this.receiverBankName,
+    this.receiverName,
     required this.amount,
     this.fee = 6500,
     this.note,

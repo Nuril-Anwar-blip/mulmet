@@ -19,6 +19,7 @@ class ConfirmTransactionScreen extends StatefulWidget {
 class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
   final List<bool> _pinFilled = List.filled(6, false);
   int _pinCount = 0;
+  String _pinValue = '';
   bool _isProcessing = false;
   final _formatter =
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
@@ -31,9 +32,10 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
         amount: 2500000,
       );
 
-  void _addPin() {
+  void _addPin(String digit) {
     if (_pinCount < 6) {
       setState(() {
+        _pinValue += digit;
         _pinFilled[_pinCount] = true;
         _pinCount++;
       });
@@ -44,14 +46,39 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
     if (_pinCount > 0) {
       setState(() {
         _pinCount--;
+        _pinValue = _pinValue.substring(0, _pinValue.length - 1);
         _pinFilled[_pinCount] = false;
       });
     }
   }
 
   Future<void> _confirmPayment() async {
+    if (_pinValue.length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Masukkan PIN transaksi 6 digit.')),
+      );
+      return;
+    }
+
     setState(() => _isProcessing = true);
     try {
+      final pinValid = await BankService.verifyTransactionPin(_pinValue);
+      if (!pinValid) {
+        if (!mounted) return;
+        setState(() {
+          _pinValue = '';
+          _pinCount = 0;
+          for (var i = 0; i < _pinFilled.length; i++) {
+            _pinFilled[i] = false;
+          }
+          _isProcessing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PIN transaksi salah.')),
+        );
+        return;
+      }
+
       final transaction = await BankService.createTransfer(_draft);
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -88,7 +115,11 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
           IconButton(
             icon: const Icon(Icons.notifications_outlined,
                 color: AppColors.primary),
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notifikasi belum tersedia untuk mode demo.')),
+              );
+            },
           ),
         ],
       ),
@@ -146,7 +177,7 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
             // Destination card
             _buildAccountCard(
               label: 'Ke Rekening',
-              name: 'Ahmad Sulaiman',
+              name: _draft.receiverName ?? 'Penerima',
               detail: '${_draft.receiverBankName} - ${_draft.receiverAccountNumber}',
               icon: Icons.person_outline,
               iconBg: AppColors.secondaryFixed,
@@ -196,7 +227,13 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
             const SizedBox(height: 28),
             // Biometric button
             GestureDetector(
-              onTap: _confirmPayment,
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Biometrik belum tersedia. Gunakan PIN transaksi.'),
+                  ),
+                );
+              },
               child: Column(
                 children: [
                   AnimatedContainer(
@@ -284,7 +321,9 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
         child: SizedBox(
           height: 56,
           child: ElevatedButton.icon(
-            onPressed: _isProcessing ? null : _confirmPayment,
+            onPressed: _isProcessing || _pinValue.length != 6
+                ? null
+                : _confirmPayment,
             icon: _isProcessing
                 ? const SizedBox(
                     width: 20,
@@ -389,10 +428,11 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
       crossAxisSpacing: 8,
       children: [
         ...List.generate(9, (i) {
-          return _pinButton('${i + 1}', () => _addPin());
+          final digit = '${i + 1}';
+          return _pinButton(digit, () => _addPin(digit));
         }),
         _pinButton('', () {}),
-        _pinButton('0', () => _addPin()),
+        _pinButton('0', () => _addPin('0')),
         _pinButton('⌫', () => _removePin(), isBack: true),
       ],
     );

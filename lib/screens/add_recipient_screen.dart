@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/models.dart';
+import '../services/bank_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/bottom_nav.dart';
-import 'confirm_transaction_screen.dart';
 
 class AddRecipientScreen extends StatefulWidget {
   const AddRecipientScreen({super.key});
@@ -17,6 +18,7 @@ class _AddRecipientScreenState extends State<AddRecipientScreen>
   bool _isVerifyEnabled = false;
   bool _isVerifying = false;
   bool _isVerified = false;
+  VerifiedAccount? _verifiedAccount;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
@@ -68,17 +70,51 @@ class _AddRecipientScreenState extends State<AddRecipientScreen>
     setState(() {
       _isVerifyEnabled = value.length >= 8;
       _isVerified = false;
+      _verifiedAccount = null;
     });
   }
 
   Future<void> _verifyAccount() async {
     setState(() => _isVerifying = true);
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (mounted) {
+    try {
+      final verified = await BankService.verifyRecipientAccount(
+        accountNumber: _accountController.text.trim(),
+        bankName: 'Mandiri',
+      );
+      if (!mounted) return;
       setState(() {
         _isVerifying = false;
         _isVerified = true;
+        _verifiedAccount = verified;
       });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isVerifying = false;
+        _isVerified = false;
+        _verifiedAccount = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _saveFavorite() async {
+    final account = _verifiedAccount;
+    if (account == null) return;
+    try {
+      await BankService.addFavoriteRecipient(account);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Penerima berhasil disimpan ke favorit.')),
+      );
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
     }
   }
 
@@ -100,7 +136,11 @@ class _AddRecipientScreenState extends State<AddRecipientScreen>
           IconButton(
             icon: const Icon(Icons.notifications_outlined,
                 color: AppColors.primary),
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notifikasi belum tersedia untuk mode demo.')),
+              );
+            },
           ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -326,14 +366,14 @@ class _AddRecipientScreenState extends State<AddRecipientScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Budi Pratama',
+                            _verifiedAccount?.ownerName ?? 'Penerima',
                             style: GoogleFonts.hankenGrotesk(
                               fontWeight: FontWeight.w700,
                               color: AppColors.primary,
                             ),
                           ),
                           Text(
-                            'Mandiri • Tabungan',
+                            '${_verifiedAccount?.bankName ?? 'Mandiri'} - ${_verifiedAccount?.accountNumber ?? ''}',
                             style: GoogleFonts.hankenGrotesk(
                                 fontSize: 12,
                                 color: AppColors.secondary),
@@ -357,12 +397,7 @@ class _AddRecipientScreenState extends State<AddRecipientScreen>
             onPressed: _isVerifyEnabled && !_isVerifying && !_isVerified
                 ? _verifyAccount
                 : _isVerified
-                    ? () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) =>
-                                  const ConfirmTransactionScreen()),
-                        )
+                    ? _saveFavorite
                     : null,
             icon: _isVerifying
                 ? const SizedBox(
@@ -377,7 +412,7 @@ class _AddRecipientScreenState extends State<AddRecipientScreen>
               _isVerifying
                   ? 'Memverifikasi...'
                   : _isVerified
-                      ? 'Lanjut Transfer'
+                      ? 'Simpan Favorit'
                       : 'Verifikasi',
               style: GoogleFonts.hankenGrotesk(
                 fontWeight: FontWeight.w600,
@@ -443,7 +478,8 @@ class _AddRecipientScreenState extends State<AddRecipientScreen>
                 _accountController.text = r['account'];
                 setState(() {
                   _isVerifyEnabled = true;
-                  _isVerified = true;
+                  _isVerified = false;
+                  _verifiedAccount = null;
                 });
               },
               child: Container(

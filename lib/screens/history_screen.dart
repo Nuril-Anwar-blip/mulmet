@@ -18,7 +18,10 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   final _searchController = TextEditingController();
   int? _expandedIndex;
-  List<Transaction> _transactions = [];
+  List<Transaction> _transactions = dummyTransactions;
+  String _query = '';
+  String _typeFilter = 'Semua Jenis';
+  String _statusFilter = 'Semua Status';
   bool _isLoading = false;
   final _formatter =
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
@@ -33,6 +36,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  List<Transaction> get _filteredTransactions {
+    return _transactions.where((tx) {
+      final query = _query.toLowerCase();
+      final matchesQuery = query.isEmpty ||
+          tx.title.toLowerCase().contains(query) ||
+          tx.subtitle.toLowerCase().contains(query) ||
+          tx.id.toLowerCase().contains(query) ||
+          (tx.recipientName?.toLowerCase().contains(query) ?? false) ||
+          (tx.recipientAccount?.toLowerCase().contains(query) ?? false);
+      final matchesType =
+          _typeFilter == 'Semua Jenis' || tx.category == _typeFilter;
+      final matchesStatus =
+          _statusFilter == 'Semua Status' || tx.status == _statusFilter;
+      return matchesQuery && matchesType && matchesStatus;
+    }).toList();
   }
 
   Future<void> _loadTransactions() async {
@@ -82,7 +102,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
           IconButton(
             icon: const Icon(Icons.notifications_outlined,
                 color: AppColors.primary),
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notifikasi belum tersedia untuk mode demo.')),
+              );
+            },
           ),
         ],
       ),
@@ -107,6 +131,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   child: TextField(
                     controller: _searchController,
+                    onChanged: (value) => setState(() => _query = value),
                     decoration: InputDecoration(
                       hintText: 'Cari transaksi...',
                       hintStyle: GoogleFonts.hankenGrotesk(
@@ -128,11 +153,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       _buildFilterChip('30 Hari Terakhir',
                           icon: Icons.calendar_today, isActive: true),
                       const SizedBox(width: 8),
-                      _buildFilterChip('Semua Jenis',
-                          trailing: Icons.expand_more),
+                      _buildFilterChip(_typeFilter,
+                          trailing: Icons.expand_more, onTap: _pickTypeFilter),
                       const SizedBox(width: 8),
-                      _buildFilterChip('Status',
-                          trailing: Icons.filter_list),
+                      _buildFilterChip(_statusFilter,
+                          trailing: Icons.filter_list, onTap: _pickStatusFilter),
                     ],
                   ),
                 ),
@@ -143,22 +168,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _transactions.isEmpty
-                    ? Center(
-                        child: Text(
-                          'Belum ada transaksi',
-                          style: GoogleFonts.hankenGrotesk(
-                            color: AppColors.outline,
-                            fontWeight: FontWeight.w600,
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                    children: [
+                      if (_filteredTransactions.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 80),
+                          child: Center(
+                            child: Text(
+                              'Tidak ada transaksi yang cocok.',
+                              style: GoogleFonts.hankenGrotesk(
+                                color: AppColors.secondary,
+                              ),
+                            ),
                           ),
-                        ),
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-                        children: [
-                          _buildMonthGroup('Transaksi Terbaru', _transactions),
-                        ],
-                      ),
+                        )
+                      else
+                        _buildMonthGroup('Transaksi Terbaru', _filteredTransactions),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -184,42 +212,72 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildFilterChip(String label,
-      {IconData? icon, IconData? trailing, bool isActive = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: isActive ? AppColors.primary : AppColors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(20),
-        border: isActive
-            ? null
-            : Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon,
-                size: 16,
-                color: isActive ? Colors.white : AppColors.onSurfaceVariant),
-            const SizedBox(width: 6),
-          ],
-          Text(
-            label,
-            style: GoogleFonts.hankenGrotesk(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: isActive ? Colors.white : AppColors.onSurfaceVariant,
+      {IconData? icon,
+      IconData? trailing,
+      bool isActive = false,
+      VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.primary : AppColors.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(20),
+          border: isActive
+              ? null
+              : Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon,
+                  size: 16,
+                  color: isActive ? Colors.white : AppColors.onSurfaceVariant),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: GoogleFonts.hankenGrotesk(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isActive ? Colors.white : AppColors.onSurfaceVariant,
+              ),
             ),
-          ),
-          if (trailing != null) ...[
-            const SizedBox(width: 4),
-            Icon(trailing,
-                size: 16,
-                color: isActive ? Colors.white : AppColors.onSurfaceVariant),
+            if (trailing != null) ...[
+              const SizedBox(width: 4),
+              Icon(trailing,
+                  size: 16,
+                  color: isActive ? Colors.white : AppColors.onSurfaceVariant),
+            ],
           ],
-        ],
+        ),
       ),
     );
+  }
+
+  Future<void> _pickTypeFilter() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => _FilterSheet(
+        title: 'Jenis Transaksi',
+        options: const ['Semua Jenis', 'Transfer', 'Pemasukan', 'Belanja', 'Tagihan'],
+        selected: _typeFilter,
+      ),
+    );
+    if (selected != null) setState(() => _typeFilter = selected);
+  }
+
+  Future<void> _pickStatusFilter() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => _FilterSheet(
+        title: 'Status',
+        options: const ['Semua Status', 'Berhasil', 'Diproses', 'Gagal'],
+        selected: _statusFilter,
+      ),
+    );
+    if (selected != null) setState(() => _statusFilter = selected);
   }
 
   Widget _buildMonthGroup(String month, List<Transaction> transactions) {
@@ -414,7 +472,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
-              onPressed: () {},
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Resi ${tx.id} siap dibagikan dari halaman struk.')),
+                );
+              },
               style: OutlinedButton.styleFrom(
                 side: BorderSide.none,
                 backgroundColor: AppColors.secondaryContainer,
@@ -444,6 +506,52 @@ class _HistoryScreenState extends State<HistoryScreen> {
               style: GoogleFonts.hankenGrotesk(
                   fontSize: 13, fontWeight: FontWeight.w700)),
         ],
+      ),
+    );
+  }
+}
+
+class _FilterSheet extends StatelessWidget {
+  final String title;
+  final List<String> options;
+  final String selected;
+
+  const _FilterSheet({
+    required this.title,
+    required this.options,
+    required this.selected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.hankenGrotesk(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...options.map(
+              (option) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(option),
+                trailing: selected == option
+                    ? const Icon(Icons.check, color: AppColors.primary)
+                    : null,
+                onTap: () => Navigator.pop(context, option),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
