@@ -53,6 +53,28 @@ class BankService {
     return accountNumber.replaceAll(RegExp(r'[^0-9]'), '');
   }
 
+  static DateTime _transactionCreatedAt(Map<String, dynamic> map) {
+    final raw = map['createdat'];
+    if (raw is String) return DateTime.parse(raw).toLocal();
+    return DateTime.now();
+  }
+
+  static String _stringOrFallback(dynamic value, String fallback) {
+    if (value is String && value.isNotEmpty) return value;
+    return fallback;
+  }
+
+  static String _transactionStatus(dynamic status) {
+    if (status == null) return 'Berhasil';
+    switch (status.toString().toUpperCase()) {
+      case 'SUCCESS': return 'Berhasil';
+      case 'FAILED':
+      case 'FAIL': return 'Gagal';
+      case 'PENDING': return 'Diproses';
+      default: return status.toString();
+    }
+  }
+
   static Exception _friendlyError(Object error) {
     final message = error.toString();
     if (message.contains('PGRST205') ||
@@ -309,19 +331,7 @@ class BankService {
               .or('senderaccountid.eq.$accountId,receiveraccountid.eq.$accountId');
     }
 
-    if (rows.isEmpty) {
-      try {
-        rows = await _client
-            .from('transaction')
-            .select()
-            .order('createdat', ascending: false);
-      } catch (error) {
-        if (!error.toString().contains('createdat')) {
-          throw _friendlyError(error);
-        }
-        rows = await _client.from('transaction').select();
-      }
-    }
+    if (rows.isEmpty) return [];
 
     final accountIds = <String>{};
     for (final row in rows) {

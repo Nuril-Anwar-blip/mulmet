@@ -22,7 +22,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _balanceHidden = false;
   AppUser? _user = SessionManager.currentUser;
   BankAccount? _account = SessionManager.currentAccount;
-  List<Transaction> _transactions = dummyTransactions;
+  List<Transaction> _transactions = [];
   final _currencyFormatter =
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 

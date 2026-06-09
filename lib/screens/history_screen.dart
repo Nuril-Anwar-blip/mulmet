@@ -18,7 +18,7 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   final _searchController = TextEditingController();
   int? _expandedIndex;
-  List<Transaction> _transactions = dummyTransactions;
+  List<Transaction> _transactions = [];
   String _query = '';
   String _typeFilter = 'Semua Jenis';
   String _statusFilter = 'Semua Status';
