@@ -83,9 +83,9 @@ grant select, insert, update, delete on table public.favorite to anon, authentic
 -- Data dummy. Semua password: 12341234.
 insert into public.user (id, username, password, email, fullname, updatedat)
 values
-  ('USR-DEMO-NURIL', 'nuril', '12341234', 'nurilaja@gmail.com', 'Nuril Anwar', current_timestamp),
-  ('USR-DEMO-AHMAD', 'ahmad', '12341234', 'ahmad@example.com', 'Ahmad Syarifuddin', current_timestamp),
-  ('USR-DEMO-SISKA', 'siska', '12341234', 'siska@example.com', 'Siska Amelia', current_timestamp)
+  ('USR-DEMO-NURIL', 'nuril', '12341234', 'nuril.demo@example.com', 'Nuril Anwar', current_timestamp),
+  ('USR-DEMO-AHMAD', 'ahmad', '12341234', 'ahmad.demo@example.com', 'Ahmad Syarifuddin', current_timestamp),
+  ('USR-DEMO-SISKA', 'siska', '12341234', 'siska.demo@example.com', 'Siska Amelia', current_timestamp)
 on conflict (id) do update set
   username = excluded.username,
   password = excluded.password,

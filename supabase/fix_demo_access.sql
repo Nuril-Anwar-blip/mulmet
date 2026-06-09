@@ -19,7 +19,7 @@ grant select, insert, update, delete on table public.favorite to anon, authentic
 
 insert into public.user (id, username, password, email, fullname, updatedat)
 values
-  ('USR-DEMO-RECEIVER', 'ahmad', '12341234', 'ahmad@example.com', 'Ahmad Syarifuddin', current_timestamp)
+  ('USR-DEMO-RECEIVER', 'ahmad', '12341234', 'ahmad.demo@example.com', 'Ahmad Syarifuddin', current_timestamp)
 on conflict (id) do nothing;
 
 insert into public.account (id, userid, accountnumber, balance, bankname)
