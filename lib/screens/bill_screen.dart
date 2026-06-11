@@ -30,6 +30,7 @@ class _BillScreenState extends State<BillScreen> {
   List<BillInvoice> _bills = [];
   bool _isLoading = false;
   bool _isSaving = false;
+  String? _payingBillId;
 
   @override
   void initState() {
@@ -113,6 +114,52 @@ class _BillScreenState extends State<BillScreen> {
     });
   }
 
+  Future<void> _confirmPayBill(BillInvoice bill) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Bayar Tagihan?'),
+          content: Text(
+            'Bayar ${bill.title} sebesar ${_currencyFormatter.format(bill.amount)}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Bayar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+
+    setState(() => _payingBillId = bill.id);
+    try {
+      final paidBill = await BankService.payBill(bill);
+      if (!mounted) return;
+      setState(() {
+        _bills = _bills.map((item) {
+          return item.id == paidBill.id ? paidBill : item;
+        }).toList();
+        _payingBillId = null;
+      });
+      final latestBalance = SessionManager.currentAccount?.balance;
+      final balanceMessage = latestBalance == null
+          ? ''
+          : ' Saldo: ${_currencyFormatter.format(latestBalance)}.';
+      _showMessage('Tagihan berhasil dibayar.$balanceMessage');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _payingBillId = null);
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   String _statusLabel(String status) {
     switch (status.toUpperCase()) {
       case 'PAID':
@@ -122,6 +169,12 @@ class _BillScreenState extends State<BillScreen> {
       default:
         return 'Belum Dibayar';
     }
+  }
+
+  bool _isBillRecipient(BillInvoice bill) {
+    final currentEmail = SessionManager.currentUser?.email.trim().toLowerCase();
+    return currentEmail != null &&
+        bill.customerEmail.trim().toLowerCase() == currentEmail;
   }
 
   @override
@@ -406,6 +459,11 @@ class _BillScreenState extends State<BillScreen> {
   }
 
   Widget _buildBillItem(BillInvoice bill) {
+    final isPaid = bill.status.toUpperCase() == 'PAID';
+    final isRecipient = _isBillRecipient(bill);
+    final canPay = !isPaid && isRecipient;
+    final isPaying = _payingBillId == bill.id;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
@@ -483,14 +541,14 @@ class _BillScreenState extends State<BillScreen> {
                 style: GoogleFonts.hankenGrotesk(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.error,
+                  color: isPaid ? AppColors.emerald : AppColors.error,
                 ),
               ),
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.amberLight,
+                  color: isPaid ? AppColors.emeraldLight : AppColors.amberLight,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -498,10 +556,55 @@ class _BillScreenState extends State<BillScreen> {
                   style: GoogleFonts.hankenGrotesk(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.amber,
+                    color: isPaid ? AppColors.emerald : AppColors.amber,
                   ),
                 ),
               ),
+              if (canPay) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 32,
+                  child: FilledButton(
+                    onPressed:
+                        isPaying ? null : () => _confirmPayBill(bill),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: isPaying
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Bayar',
+                            style: GoogleFonts.hankenGrotesk(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  ),
+                ),
+              ] else if (!isPaid) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Menunggu pembayaran',
+                  textAlign: TextAlign.right,
+                  style: GoogleFonts.hankenGrotesk(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.outline,
+                  ),
+                ),
+              ],
             ],
           ),
         ],

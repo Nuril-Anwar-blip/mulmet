@@ -79,6 +79,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Future<void> _openBillScreen() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BillScreen()),
+    );
+    if (!mounted) return;
+    await _loadDashboardData();
+  }
+
   Future<void> _loadDashboardData() async {
     final user = SessionManager.currentUser;
     final account = SessionManager.currentAccount;
@@ -158,7 +167,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       automaticallyImplyLeading: false,
       flexibleSpace: FlexibleSpaceBar(
         background: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.fromLTRB(20, 30, 20, 6),
           child: Row(
             children: [
               // Avatar
@@ -216,7 +225,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
       ),
-      toolbarHeight: 68,
+      toolbarHeight: 86,
     );
   }
 
@@ -388,8 +397,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const TransferScreen()));
             } else if (a['label'] == 'Tagihan') {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const BillScreen()));
+              _openBillScreen();
             } else {
               _showDemoMessage(a['label'] as String);
             }

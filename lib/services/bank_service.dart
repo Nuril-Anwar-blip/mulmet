@@ -28,6 +28,7 @@ class BankService {
 
   static const _sessionUserIdKey = 'current_user_id';
   static const _localBillsKeyPrefix = 'local_bill_invoices';
+  static const _localBillsGlobalKey = 'local_bill_invoices:all';
   static final _client = Supabase.instance.client;
   static final _dateFormatter = DateFormat('dd MMM', 'id_ID');
   static final _timeFormatter = DateFormat('HH:mm', 'id_ID');
@@ -322,19 +323,30 @@ class BankService {
   }
 
   static Future<List<BillInvoice>> getBills(String userId) async {
-    try {
-      final rows = await _client
-          .from('bill_invoice')
-          .select()
-          .eq('userid', userId)
-          .order('createdat', ascending: false);
+    final userEmail = SessionManager.currentUser?.email.trim().toLowerCase();
 
-      return rows.map((row) {
-        return BillInvoice.fromMap(Map<String, dynamic>.from(row as Map));
-      }).toList();
+    try {
+      final createdRows =
+          await _client.from('bill_invoice').select().eq('userid', userId);
+      final receivedRows = userEmail == null || userEmail.isEmpty
+          ? <dynamic>[]
+          : await _client
+              .from('bill_invoice')
+              .select()
+              .eq('customeremail', userEmail);
+
+      final billsById = <String, BillInvoice>{};
+      for (final row in [...createdRows, ...receivedRows]) {
+        final bill = BillInvoice.fromMap(Map<String, dynamic>.from(row as Map));
+        billsById[bill.id] = bill;
+      }
+
+      final bills = billsById.values.toList();
+      bills.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return bills;
     } catch (error) {
       if (_isMissingTableError(error)) {
-        return _getLocalBills(userId);
+        return _getLocalBills(userId, userEmail: userEmail);
       }
       throw _friendlyError(error);
     }
@@ -381,26 +393,119 @@ class BankService {
     }
   }
 
-  static Future<List<BillInvoice>> _getLocalBills(String userId) async {
+  static Future<BillInvoice> payBill(BillInvoice bill) async {
+    final user = SessionManager.currentUser;
+    final account = SessionManager.currentAccount;
+    if (user == null || account == null) {
+      throw Exception('Sesi rekening tidak ditemukan. Silakan login ulang.');
+    }
+    if (bill.customerEmail.trim().toLowerCase() !=
+        user.email.trim().toLowerCase()) {
+      throw Exception('Tagihan ini hanya bisa dibayar oleh penerima tagihan.');
+    }
+    if (bill.status.toUpperCase() == 'PAID') {
+      throw Exception('Tagihan ini sudah lunas.');
+    }
+
+    final latestAccount = await getPrimaryAccount(user.id) ?? account;
+    if (latestAccount.balance < bill.amount) {
+      throw Exception('Saldo tidak cukup untuk membayar tagihan.');
+    }
+
+    if (bill.id.startsWith('BILL-LOCAL')) {
+      final updatedAccount =
+          await _updateAccountBalance(latestAccount, -bill.amount);
+      final paidBill = await _payLocalBill(bill.id);
+      SessionManager.setSession(user, updatedAccount);
+      return paidBill;
+    }
+
+    BankAccount? updatedAccount;
+    try {
+      updatedAccount = await _updateAccountBalance(latestAccount, -bill.amount);
+      final row = await _client
+          .from('bill_invoice')
+          .update({
+            'status': 'PAID',
+            'updatedat': DateTime.now().toIso8601String(),
+          })
+          .eq('id', bill.id)
+          .eq('customeremail', user.email.trim().toLowerCase())
+          .select()
+          .single();
+
+      SessionManager.setSession(user, updatedAccount);
+      return BillInvoice.fromMap(Map<String, dynamic>.from(row));
+    } catch (error) {
+      if (_isMissingTableError(error)) {
+        final paidBill = await _payLocalBill(bill.id);
+        final accountAfterPayment = updatedAccount ??
+            await _updateAccountBalance(latestAccount, -bill.amount);
+        SessionManager.setSession(user, accountAfterPayment);
+        return paidBill;
+      }
+      throw _friendlyError(error);
+    }
+  }
+
+  static Future<BankAccount> _updateAccountBalance(
+    BankAccount account,
+    double delta,
+  ) async {
+    final row = await _client
+        .from('account')
+        .update({'balance': account.balance + delta})
+        .eq('id', account.id)
+        .select()
+        .single();
+    return _accountFromRow(Map<String, dynamic>.from(row));
+  }
+
+  static Future<List<BillInvoice>> _getLocalBills(
+    String userId, {
+    String? userEmail,
+  }) async {
+    final bills = await _getAllLocalBills();
+    final normalizedEmail = userEmail?.trim().toLowerCase();
+    final visibleBills = bills.where((bill) {
+      return bill.userId == userId ||
+          (normalizedEmail != null &&
+              bill.customerEmail.trim().toLowerCase() == normalizedEmail);
+    }).toList();
+    visibleBills.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return visibleBills;
+  }
+
+  static Future<List<BillInvoice>> _getAllLocalBills() async {
     final prefs = await SharedPreferences.getInstance();
-    final encoded = prefs.getString('$_localBillsKeyPrefix:$userId');
-    if (encoded == null || encoded.isEmpty) return [];
+    final rowsById = <String, BillInvoice>{};
 
-    final decoded = jsonDecode(encoded);
-    if (decoded is! List) return [];
+    void addRows(String? encoded) {
+      if (encoded == null || encoded.isEmpty) return;
+      final decoded = jsonDecode(encoded);
+      if (decoded is! List) return;
 
-    final bills = decoded
-        .whereType<Map>()
-        .map((row) => BillInvoice.fromMap(Map<String, dynamic>.from(row)))
-        .toList();
+      for (final row in decoded.whereType<Map>()) {
+        final bill = BillInvoice.fromMap(Map<String, dynamic>.from(row));
+        rowsById[bill.id] = bill;
+      }
+    }
+
+    addRows(prefs.getString(_localBillsGlobalKey));
+
+    final keys = prefs
+        .getKeys()
+        .where((key) => key.startsWith('$_localBillsKeyPrefix:'));
+    for (final key in keys) {
+      addRows(prefs.getString(key));
+    }
+
+    final bills = rowsById.values.toList();
     bills.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return bills;
   }
 
-  static Future<void> _saveLocalBills(
-    String userId,
-    List<BillInvoice> bills,
-  ) async {
+  static Future<void> _saveLocalBills(List<BillInvoice> bills) async {
     final prefs = await SharedPreferences.getInstance();
     final rows = bills.map((bill) {
       return {
@@ -414,7 +519,30 @@ class BankService {
         'createdat': bill.createdAt.toIso8601String(),
       };
     }).toList();
-    await prefs.setString('$_localBillsKeyPrefix:$userId', jsonEncode(rows));
+    await prefs.setString(_localBillsGlobalKey, jsonEncode(rows));
+  }
+
+  static Future<BillInvoice> _payLocalBill(String billId) async {
+    final bills = await _getAllLocalBills();
+    final billIndex = bills.indexWhere((bill) => bill.id == billId);
+    if (billIndex == -1) {
+      throw Exception('Tagihan tidak ditemukan.');
+    }
+
+    final bill = bills[billIndex];
+    final paidBill = BillInvoice(
+      id: bill.id,
+      userId: bill.userId,
+      customerName: bill.customerName,
+      customerEmail: bill.customerEmail,
+      title: bill.title,
+      amount: bill.amount,
+      status: 'PAID',
+      createdAt: bill.createdAt,
+    );
+    bills[billIndex] = paidBill;
+    await _saveLocalBills(bills);
+    return paidBill;
   }
 
   static Future<BillInvoice> _createLocalBill({
@@ -434,8 +562,8 @@ class BankService {
       status: 'UNPAID',
       createdAt: DateTime.now(),
     );
-    final bills = await _getLocalBills(userId);
-    await _saveLocalBills(userId, [bill, ...bills]);
+    final bills = await _getAllLocalBills();
+    await _saveLocalBills([bill, ...bills]);
     return bill;
   }
 
