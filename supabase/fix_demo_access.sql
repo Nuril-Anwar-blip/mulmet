@@ -9,6 +9,7 @@ alter table if exists public.account disable row level security;
 alter table if exists public.transaction disable row level security;
 alter table if exists public.loginlog disable row level security;
 alter table if exists public.favorite disable row level security;
+alter table if exists public.bill_invoice disable row level security;
 
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on table public.user to anon, authenticated;
@@ -16,6 +17,7 @@ grant select, insert, update, delete on table public.account to anon, authentica
 grant select, insert, update, delete on table public.transaction to anon, authenticated;
 grant select, insert, update, delete on table public.loginlog to anon, authenticated;
 grant select, insert, update, delete on table public.favorite to anon, authenticated;
+grant select, insert, update, delete on table public.bill_invoice to anon, authenticated;
 
 insert into public.user (id, username, password, email, fullname, updatedat)
 values

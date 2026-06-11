@@ -135,6 +135,41 @@ class Transaction {
   });
 }
 
+class BillInvoice {
+  final String id;
+  final String userId;
+  final String customerName;
+  final String customerEmail;
+  final String title;
+  final double amount;
+  final String status;
+  final DateTime createdAt;
+
+  BillInvoice({
+    required this.id,
+    required this.userId,
+    required this.customerName,
+    required this.customerEmail,
+    required this.title,
+    required this.amount,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory BillInvoice.fromMap(Map<String, dynamic> map) {
+    return BillInvoice(
+      id: map['id'] as String,
+      userId: map['userid'] as String,
+      customerName: map['customername'] as String,
+      customerEmail: map['customeremail'] as String,
+      title: map['title'] as String,
+      amount: (map['amount'] as num).toDouble(),
+      status: map['status'] as String,
+      createdAt: DateTime.parse(map['createdat'] as String).toLocal(),
+    );
+  }
+}
+
 class Bank {
   final String name;
   final String code;

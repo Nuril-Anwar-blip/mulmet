@@ -3,7 +3,7 @@
 --
 -- Jalankan seluruh file ini di Supabase SQL Editor.
 -- Tabel yang dipakai Flutter:
--- user, account, transaction, loginlog, favorite
+-- user, account, transaction, loginlog, favorite, bill_invoice
 --
 -- Akun dummy:
 -- username: nuril | password: 12341234 | PIN: 123456
@@ -77,6 +77,21 @@ create table if not exists public.favorite (
   constraint favorite_userid_fkey foreign key (userid) references public.user(id)
 );
 
+create table if not exists public.bill_invoice (
+  id text not null,
+  userid text not null,
+  customername text not null,
+  customeremail text not null,
+  title text not null,
+  amount double precision not null,
+  status text not null default 'UNPAID',
+  createdat timestamp without time zone not null default current_timestamp,
+  updatedat timestamp without time zone not null default current_timestamp,
+  constraint bill_invoice_pkey primary key (id),
+  constraint bill_invoice_userid_fkey foreign key (userid) references public.user(id),
+  constraint bill_invoice_amount_check check (amount > 0)
+);
+
 alter table public.user add column if not exists phone text;
 alter table public.user add column if not exists transactionpin text default '123456';
 update public.user
@@ -90,12 +105,15 @@ create index if not exists transaction_sender_idx on public.transaction(senderac
 create index if not exists transaction_receiver_idx on public.transaction(receiveraccountid);
 create index if not exists favorite_userid_idx on public.favorite(userid);
 create index if not exists loginlog_userid_idx on public.loginlog(userid);
+create index if not exists bill_invoice_userid_idx on public.bill_invoice(userid);
+create index if not exists bill_invoice_createdat_idx on public.bill_invoice(createdat);
 
 alter table if exists public.user disable row level security;
 alter table if exists public.account disable row level security;
 alter table if exists public.transaction disable row level security;
 alter table if exists public.loginlog disable row level security;
 alter table if exists public.favorite disable row level security;
+alter table if exists public.bill_invoice disable row level security;
 
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on table public.user to anon, authenticated;
@@ -103,6 +121,7 @@ grant select, insert, update, delete on table public.account to anon, authentica
 grant select, insert, update, delete on table public.transaction to anon, authenticated;
 grant select, insert, update, delete on table public.loginlog to anon, authenticated;
 grant select, insert, update, delete on table public.favorite to anon, authenticated;
+grant select, insert, update, delete on table public.bill_invoice to anon, authenticated;
 
 create or replace function public.create_transfer_atomic(
   p_sender_account_id text,
@@ -234,6 +253,7 @@ where id like 'TRX-DEMO-%'
    or senderaccountid like 'ACC-DEMO-%'
    or receiveraccountid like 'ACC-DEMO-%';
 delete from public.favorite where id like 'FAV-DEMO-%';
+delete from public.bill_invoice where id like 'BILL-DEMO-%';
 delete from public.account where id like 'ACC-DEMO-%';
 delete from public.loginlog where userid like 'USR-DEMO-%';
 delete from public.user where id like 'USR-DEMO-%';
@@ -323,3 +343,46 @@ on conflict (referencenumber) do update set
   note = excluded.note,
   status = excluded.status,
   createdat = excluded.createdat;
+
+insert into public.bill_invoice (
+  id,
+  userid,
+  customername,
+  customeremail,
+  title,
+  amount,
+  status,
+  createdat,
+  updatedat
+)
+values
+  (
+    'BILL-DEMO-001',
+    'USR-DEMO-NURIL',
+    'Damar Prasetyo',
+    'damar.tagihan@example.com',
+    'Tagihan Internet Juni',
+    250000,
+    'UNPAID',
+    current_timestamp - interval '3 hours',
+    current_timestamp - interval '3 hours'
+  ),
+  (
+    'BILL-DEMO-002',
+    'USR-DEMO-NURIL',
+    'Siti Rahma',
+    'siti.rahma@example.com',
+    'Tagihan Listrik Kos',
+    175000,
+    'UNPAID',
+    current_timestamp - interval '1 hour',
+    current_timestamp - interval '1 hour'
+  )
+on conflict (id) do update set
+  userid = excluded.userid,
+  customername = excluded.customername,
+  customeremail = excluded.customeremail,
+  title = excluded.title,
+  amount = excluded.amount,
+  status = excluded.status,
+  updatedat = current_timestamp;

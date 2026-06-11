@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../models/models.dart';
 import '../services/bank_service.dart';
 import '../widgets/bottom_nav.dart';
+import 'bill_screen.dart';
 import 'transfer_screen.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
@@ -28,7 +29,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   late AnimationController _animController;
   late List<Animation<double>> _sectionAnimations;
-
 
   @override
   void initState() {
@@ -60,6 +60,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (index == 1) {
       Navigator.push(
           context, MaterialPageRoute(builder: (_) => const TransferScreen()));
+    } else if (index == 2) {
+      _showDemoMessage('QRIS');
     } else if (index == 3) {
       Navigator.push(
           context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
@@ -165,8 +167,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 height: 42,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                      color: AppColors.primaryContainer, width: 2),
+                  border:
+                      Border.all(color: AppColors.primaryContainer, width: 2),
                 ),
                 child: const CircleAvatar(
                   backgroundColor: AppColors.secondaryContainer,
@@ -351,10 +353,30 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildQuickActions() {
     final actions = [
-      {'icon': Icons.sync_alt, 'label': 'Transfer', 'color': AppColors.secondaryContainer, 'iconColor': AppColors.primary},
-      {'icon': Icons.qr_code_scanner, 'label': 'QRIS', 'color': AppColors.tertiaryFixed, 'iconColor': AppColors.tertiaryContainer},
-      {'icon': Icons.receipt_long_outlined, 'label': 'Tagihan', 'color': AppColors.primaryFixed, 'iconColor': AppColors.primary},
-      {'icon': Icons.grid_view, 'label': 'Lainnya', 'color': AppColors.surfaceContainerHigh, 'iconColor': AppColors.onSurfaceVariant},
+      {
+        'icon': Icons.sync_alt,
+        'label': 'Transfer',
+        'color': AppColors.secondaryContainer,
+        'iconColor': AppColors.primary
+      },
+      {
+        'icon': Icons.qr_code_scanner,
+        'label': 'QRIS',
+        'color': AppColors.tertiaryFixed,
+        'iconColor': AppColors.tertiaryContainer
+      },
+      {
+        'icon': Icons.receipt_long_outlined,
+        'label': 'Tagihan',
+        'color': AppColors.primaryFixed,
+        'iconColor': AppColors.primary
+      },
+      {
+        'icon': Icons.grid_view,
+        'label': 'Lainnya',
+        'color': AppColors.surfaceContainerHigh,
+        'iconColor': AppColors.onSurfaceVariant
+      },
     ];
 
     return Row(
@@ -365,6 +387,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             if (a['label'] == 'Transfer') {
               Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const TransferScreen()));
+            } else if (a['label'] == 'Tagihan') {
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const BillScreen()));
             } else {
               _showDemoMessage(a['label'] as String);
             }
@@ -588,9 +613,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             style: GoogleFonts.hankenGrotesk(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: tx.isCredit
-                  ? const Color(0xFF059669)
-                  : AppColors.onSurface,
+              color:
+                  tx.isCredit ? const Color(0xFF059669) : AppColors.onSurface,
             ),
           ),
         ],

@@ -21,7 +21,7 @@ String _configValue({
     return dartDefineValue;
   }
 
-  final envValue = dotenv.env[envName];
+  final envValue = dotenv.env[envName]?.trim();
   if (envValue != null && envValue.isNotEmpty) {
     return envValue;
   }

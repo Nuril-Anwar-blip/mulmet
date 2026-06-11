@@ -104,7 +104,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 color: AppColors.primary),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notifikasi belum tersedia untuk mode demo.')),
+                const SnackBar(
+                    content:
+                        Text('Notifikasi belum tersedia untuk mode demo.')),
               );
             },
           ),
@@ -136,8 +138,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       hintText: 'Cari transaksi...',
                       hintStyle: GoogleFonts.hankenGrotesk(
                           color: AppColors.outlineVariant),
-                      prefixIcon: const Icon(Icons.search,
-                          color: AppColors.outline),
+                      prefixIcon:
+                          const Icon(Icons.search, color: AppColors.outline),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
@@ -157,7 +159,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           trailing: Icons.expand_more, onTap: _pickTypeFilter),
                       const SizedBox(width: 8),
                       _buildFilterChip(_statusFilter,
-                          trailing: Icons.filter_list, onTap: _pickStatusFilter),
+                          trailing: Icons.filter_list,
+                          onTap: _pickStatusFilter),
                     ],
                   ),
                 ),
@@ -184,7 +187,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ),
                         )
                       else
-                        _buildMonthGroup('Transaksi Terbaru', _filteredTransactions),
+                        _buildMonthGroup(
+                            'Transaksi Terbaru', _filteredTransactions),
                     ],
                   ),
           ),
@@ -225,7 +229,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           borderRadius: BorderRadius.circular(20),
           border: isActive
               ? null
-              : Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.3)),
+              : Border.all(
+                  color: AppColors.outlineVariant.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -261,7 +266,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
       context: context,
       builder: (_) => _FilterSheet(
         title: 'Jenis Transaksi',
-        options: const ['Semua Jenis', 'Transfer', 'Pemasukan', 'Belanja', 'Tagihan'],
+        options: const [
+          'Semua Jenis',
+          'Transfer',
+          'Pemasukan',
+          'Belanja',
+          'Tagihan'
+        ],
         selected: _typeFilter,
       ),
     );
@@ -312,8 +323,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           final isExpanded = _expandedIndex == ('$month$index').hashCode;
           return _buildTxItem(tx, isExpanded, () {
             setState(() {
-              _expandedIndex =
-                  isExpanded ? null : ('$month$index').hashCode;
+              _expandedIndex = isExpanded ? null : ('$month$index').hashCode;
             });
           });
         }),
@@ -321,8 +331,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildTxItem(
-      Transaction tx, bool isExpanded, VoidCallback onTap) {
+  Widget _buildTxItem(Transaction tx, bool isExpanded, VoidCallback onTap) {
     IconData icon;
     Color iconBg;
     Color iconColor;
@@ -442,9 +451,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         AnimatedCrossFade(
           firstChild: const SizedBox(width: double.infinity),
           secondChild: _buildTxDetail(tx),
-          crossFadeState: isExpanded
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
+          crossFadeState:
+              isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
           duration: const Duration(milliseconds: 250),
         ),
       ],
@@ -474,7 +482,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: OutlinedButton(
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Resi ${tx.id} siap dibagikan dari halaman struk.')),
+                  SnackBar(
+                      content: Text(
+                          'Resi ${tx.id} siap dibagikan dari halaman struk.')),
                 );
               },
               style: OutlinedButton.styleFrom(
@@ -485,7 +495,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     borderRadius: BorderRadius.circular(12)),
               ),
               child: Text('Bagikan Resi',
-                  style: GoogleFonts.hankenGrotesk(fontWeight: FontWeight.w600)),
+                  style:
+                      GoogleFonts.hankenGrotesk(fontWeight: FontWeight.w600)),
             ),
           ),
         ],
