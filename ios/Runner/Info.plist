@@ -49,6 +49,10 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Kamera diperlukan untuk scan kode QRIS.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Akses galeri diperlukan untuk foto profil.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

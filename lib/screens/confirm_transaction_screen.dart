@@ -3,7 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../services/bank_service.dart';
+import '../services/biometric_service.dart';
+import '../services/otp_service.dart';
+import 'otp_verify_screen.dart';
 import '../theme/app_theme.dart';
+import '../widgets/notification_icon_button.dart';
 import 'receipt_screen.dart';
 
 class ConfirmTransactionScreen extends StatefulWidget {
@@ -52,6 +56,77 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
     }
   }
 
+  Future<bool> _maybeVerifyOtp() async {
+    final user = SessionManager.currentUser;
+    if (user == null || !OtpService.requiresOtpForAmount(_draft.amount)) {
+      return true;
+    }
+    final otp = await OtpService.generateOtp(user.id);
+    if (!mounted) return false;
+    final verified = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OtpVerifyScreen(
+          userId: user.id,
+          otpCode: otp,
+          onVerified: () {},
+        ),
+      ),
+    );
+    return verified == true;
+  }
+
+  Future<void> _confirmWithBiometric() async {
+    setState(() => _isProcessing = true);
+    try {
+      final canUse = await BiometricService.canUseTransactionBiometric();
+      if (!canUse) {
+        if (!mounted) return;
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Aktifkan biometrik transaksi di menu Keamanan profil.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final authenticated = await BiometricService.authenticate(
+        reason: 'Konfirmasi transfer dana',
+      );
+      if (!authenticated) {
+        if (!mounted) return;
+        setState(() => _isProcessing = false);
+        return;
+      }
+
+      final otpOk = await _maybeVerifyOtp();
+      if (!otpOk) {
+        if (!mounted) return;
+        setState(() => _isProcessing = false);
+        return;
+      }
+
+      final transaction = await BankService.createTransfer(_draft);
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReceiptScreen(transaction: transaction, draft: _draft),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
   Future<void> _confirmPayment() async {
     if (_pinValue.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -76,6 +151,13 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('PIN transaksi salah.')),
         );
+        return;
+      }
+
+      final otpOk = await _maybeVerifyOtp();
+      if (!otpOk) {
+        if (!mounted) return;
+        setState(() => _isProcessing = false);
         return;
       }
 
@@ -111,16 +193,8 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
           style: GoogleFonts.hankenGrotesk(
               fontWeight: FontWeight.w600, color: AppColors.primary),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.primary),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notifikasi belum tersedia untuk mode demo.')),
-              );
-            },
-          ),
+        actions: const [
+          NotificationIconButton(),
         ],
       ),
       body: SingleChildScrollView(
@@ -227,13 +301,7 @@ class _ConfirmTransactionScreenState extends State<ConfirmTransactionScreen> {
             const SizedBox(height: 28),
             // Biometric button
             GestureDetector(
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Biometrik belum tersedia. Gunakan PIN transaksi.'),
-                  ),
-                );
-              },
+              onTap: _isProcessing ? null : _confirmWithBiometric,
               child: Column(
                 children: [
                   AnimatedContainer(

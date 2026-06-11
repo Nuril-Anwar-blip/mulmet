@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
 import '../services/bank_service.dart';
+import '../services/export_service.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/notification_icon_button.dart';
 import 'profile_screen.dart';
 import 'transfer_screen.dart';
 
@@ -22,6 +24,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String _query = '';
   String _typeFilter = 'Semua Jenis';
   String _statusFilter = 'Semua Status';
+  String _dateFilter = 'Semua';
   bool _isLoading = false;
   final _formatter =
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
@@ -51,8 +54,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
           _typeFilter == 'Semua Jenis' || tx.category == _typeFilter;
       final matchesStatus =
           _statusFilter == 'Semua Status' || tx.status == _statusFilter;
-      return matchesQuery && matchesType && matchesStatus;
+      final matchesDate = _matchesDateFilter(tx);
+      return matchesQuery && matchesType && matchesStatus && matchesDate;
     }).toList();
+  }
+
+  bool _matchesDateFilter(Transaction tx) {
+    if (_dateFilter == 'Semua' || tx.createdAt == null) return true;
+    final now = DateTime.now();
+    final created = tx.createdAt!;
+    if (_dateFilter == '7 Hari') {
+      return now.difference(created).inDays <= 7;
+    }
+    if (_dateFilter == '30 Hari') {
+      return now.difference(created).inDays <= 30;
+    }
+    return true;
   }
 
   Future<void> _loadTransactions() async {
@@ -100,16 +117,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.primary),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content:
-                        Text('Notifikasi belum tersedia untuk mode demo.')),
-              );
-            },
+            icon: const Icon(Icons.download_outlined, color: AppColors.primary),
+            onPressed: () => ExportService.shareCsv(_filteredTransactions),
           ),
+          const NotificationIconButton(),
         ],
       ),
       body: Column(
@@ -152,8 +163,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _buildFilterChip('30 Hari Terakhir',
-                          icon: Icons.calendar_today, isActive: true),
+                      _buildFilterChip(
+                        _dateFilter == 'Semua' ? 'Semua Tanggal' : _dateFilter,
+                        icon: Icons.calendar_today,
+                        isActive: _dateFilter != 'Semua',
+                        onTap: _pickDateFilter,
+                      ),
                       const SizedBox(width: 8),
                       _buildFilterChip(_typeFilter,
                           trailing: Icons.expand_more, onTap: _pickTypeFilter),
@@ -259,6 +274,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _pickDateFilter() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => _FilterSheet(
+        title: 'Periode',
+        options: const ['Semua', '7 Hari', '30 Hari'],
+        selected: _dateFilter,
+      ),
+    );
+    if (selected != null) setState(() => _dateFilter = selected);
   }
 
   Future<void> _pickTypeFilter() async {

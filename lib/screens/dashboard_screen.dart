@@ -5,10 +5,14 @@ import '../theme/app_theme.dart';
 import '../models/models.dart';
 import '../services/bank_service.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/notification_icon_button.dart';
 import 'bill_screen.dart';
 import 'transfer_screen.dart';
 import 'history_screen.dart';
+import 'financial_chart_screen.dart';
+import 'more_services_screen.dart';
 import 'profile_screen.dart';
+import 'qris_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -61,7 +65,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       Navigator.push(
           context, MaterialPageRoute(builder: (_) => const TransferScreen()));
     } else if (index == 2) {
-      _showDemoMessage('QRIS');
+      Navigator.push(
+          context, MaterialPageRoute(builder: (_) => const QrisScreen()));
     } else if (index == 3) {
       Navigator.push(
           context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
@@ -71,12 +76,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     } else {
       setState(() => _currentIndex = index);
     }
-  }
-
-  void _showDemoMessage(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature belum tersedia untuk mode demo.')),
-    );
   }
 
   Future<void> _openBillScreen() async {
@@ -130,6 +129,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 _buildAnimated(0, _buildBalanceCard()),
                 const SizedBox(height: 28),
                 _buildAnimated(1, _buildQuickActions()),
+                const SizedBox(height: 28),
+                _buildAnimated(2, _buildFinancialSummaryCard()),
                 const SizedBox(height: 28),
                 _buildAnimated(2, _buildPromoBanner()),
                 const SizedBox(height: 28),
@@ -207,11 +208,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ],
               ),
               const Spacer(),
-              GestureDetector(
-                onTap: () => _showDemoMessage('Notifikasi'),
-                child: const Icon(Icons.notifications_outlined,
-                    color: AppColors.primary, size: 26),
-              ),
+              const NotificationIconButton(),
               const SizedBox(width: 12),
               Text(
                 'Bank Mandiri',
@@ -398,8 +395,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                   MaterialPageRoute(builder: (_) => const TransferScreen()));
             } else if (a['label'] == 'Tagihan') {
               _openBillScreen();
+            } else if (a['label'] == 'QRIS') {
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const QrisScreen()));
             } else {
-              _showDemoMessage(a['label'] as String);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MoreServicesScreen()),
+              );
             }
           },
           child: Column(
@@ -426,6 +429,65 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildFinancialSummaryCard() {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const FinancialChartScreen()),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.primaryFixed,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.bar_chart, color: AppColors.primary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Grafik Keuangan',
+                    style: GoogleFonts.hankenGrotesk(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  Text(
+                    'Lihat ringkasan pemasukan & pengeluaran',
+                    style: GoogleFonts.hankenGrotesk(
+                      fontSize: 12,
+                      color: AppColors.secondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.secondary),
+          ],
+        ),
+      ),
     );
   }
 
@@ -538,11 +600,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         ..._transactions.take(3).map((tx) => _buildTransactionItem(tx)),
       ],
     );
-  }
-
-  String _maskAccount(String? accountNumber) {
-    if (accountNumber == null || accountNumber.length < 4) return '****';
-    return '${accountNumber.substring(0, 3)}***${accountNumber.substring(accountNumber.length - 2)}';
   }
 
   Widget _buildTransactionItem(Transaction tx) {

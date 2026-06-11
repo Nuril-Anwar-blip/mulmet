@@ -13,7 +13,6 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
-  final _nikController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passController = TextEditingController();
@@ -26,7 +25,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _nikController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     _passController.dispose();
@@ -36,26 +34,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     final name = _nameController.text.trim();
-    final nik = _nikController.text.trim();
     final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     final password = _passController.text;
     final confirmPassword = _confirmPassController.text;
 
     if (name.isEmpty ||
-        nik.isEmpty ||
         phone.isEmpty ||
         email.isEmpty ||
         password.isEmpty ||
         confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Lengkapi semua data pendaftaran.')),
-      );
-      return;
-    }
-    if (!RegExp(r'^\d{16}$').hasMatch(nik)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('NIK harus berisi 16 digit angka.')),
       );
       return;
     }
@@ -78,7 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       return;
     }
-    if (_passController.text != _confirmPassController.text) {
+    if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Konfirmasi password tidak sama.')),
       );
@@ -168,12 +158,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 6),
                   _buildField(_nameController, 'Masukkan nama sesuai KTP',
                       Icons.person_outline),
-                  const SizedBox(height: 14),
-                  _buildLabel('NIK (No. KTP)'),
-                  const SizedBox(height: 6),
-                  _buildField(_nikController, '16 digit nomor identitas',
-                      Icons.badge_outlined,
-                      keyboardType: TextInputType.number),
                   const SizedBox(height: 14),
                   _buildLabel('Nomor Telepon'),
                   const SizedBox(height: 6),

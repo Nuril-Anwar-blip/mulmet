@@ -1,137 +1,60 @@
-# Bank Mandiri - Flutter Mobile Banking App
+# Bank Mandiri Mobile Banking
 
-Aplikasi mobile banking Bank Mandiri yang dibangun dengan Flutter, mengkonversi desain HTML/Tailwind menjadi kode Flutter native yang lengkap.
+Aplikasi mobile banking Bank Mandiri. Semua fitur utama sudah terhubung ke layar dan layanan nyata, bukan mode demo.
 
----
+## Fitur Lengkap
 
-## 📱 Screens yang Tersedia
+| Fitur | File |
+|---|---|
+| Login + Biometrik | `login_screen.dart`, `biometric_service.dart` |
+| Dashboard | `dashboard_screen.dart` |
+| Transfer + Ganti Rekening | `transfer_screen.dart`, `account_select_screen.dart` |
+| QRIS | `qris_screen.dart`, `qris_confirm_screen.dart` |
+| Tagihan | `bill_screen.dart` |
+| Notifikasi | `notification_screen.dart`, `notification_service.dart` |
+| Riwayat | `history_screen.dart` |
+| Profil + Keamanan + Bahasa | `profile_screen.dart`, `security_screen.dart`, `language_screen.dart` |
+| Layanan Lainnya | `more_services_screen.dart` |
+| Lupa Password | `forgot_password_screen.dart` |
 
-| Screen | File | Deskripsi |
-|---|---|---|
-| Login | `login_screen.dart` | Halaman masuk dengan username/password & biometrik |
-| Dashboard | `dashboard_screen.dart` | Beranda utama dengan saldo, quick actions, transaksi |
-| Transfer | `transfer_screen.dart` | Form transfer dana |
-| Pilih Bank | `bank_select_screen.dart` | Pilihan bank tujuan transfer (populer + daftar A-Z) |
-| Tambah Penerima | `add_recipient_screen.dart` | Input & verifikasi nomor rekening penerima |
-| Konfirmasi | `confirm_transaction_screen.dart` | Konfirmasi transaksi + PIN / biometrik |
-| Struk / Resi | `receipt_screen.dart` | Bukti transfer berhasil |
-| Riwayat | `history_screen.dart` | Daftar transaksi dengan filter & detail expandable |
-| Profil | `profile_screen.dart` | Informasi pengguna & pengaturan akun |
-| Registrasi | `register_screen.dart` | Pendaftaran akun baru |
+## Setup Database
 
----
+1. Jalankan `supabase/mobile_banking_latest_database.sql`
+2. Jalankan `supabase/production_schema.sql` untuk tabel notifikasi dan label rekening
+3. Isi kredensial Supabase di `.env` atau `lib/supabase_config.dart`
 
-## 🚀 Cara Menjalankan
+## Menjalankan
 
-### Prasyarat
-- Flutter SDK **≥ 3.0.0**
-- Dart SDK **≥ 3.0.0**
-- Android Studio / VS Code dengan plugin Flutter
-
-### Langkah
-
-```bash
-# 1. Masuk ke folder project
-cd bank_mandiri_flutter
-
-# 2. Install dependensi
+```powershell
+cd tugas_akhir_bank
 flutter pub get
-
-# 3. Jalankan di emulator/device
 flutter run
 ```
 
----
+## Akun Uji
 
-## 🗂️ Struktur Project
+- Username: `nuril` | Password: `12341234` | PIN: `123456`
+- Username: `ahmad` | Password: `12341234` | PIN: `123456`
+- Username: `siska` | Password: `12341234` | PIN: `123456`
 
-```
-lib/
-├── main.dart                          # Entry point aplikasi
-├── theme/
-│   └── app_theme.dart                 # Warna, typography, ThemeData
-├── models/
-│   └── models.dart                    # Model data (Transaction, Bank, dummy data)
-├── widgets/
-│   └── bottom_nav.dart                # Bottom navigation bar (shared widget)
-└── screens/
-    ├── login_screen.dart
-    ├── register_screen.dart
-    ├── dashboard_screen.dart
-    ├── transfer_screen.dart
-    ├── bank_select_screen.dart
-    ├── add_recipient_screen.dart
-    ├── confirm_transaction_screen.dart
-    ├── receipt_screen.dart
-    ├── history_screen.dart
-    └── profile_screen.dart
-```
+## Fitur Lengkap
 
----
-
-## 📦 Dependencies
-
-```yaml
-dependencies:
-  flutter:
-    sdk: flutter
-  google_fonts: ^6.1.0    # Font Hanken Grotesk (sesuai desain asli)
-  intl: ^0.18.1           # Format mata uang Rupiah (Rp)
-```
-
----
-
-## 🎨 Design System
-
-Mengikuti token desain dari HTML asli:
-
-| Token | Nilai |
+| Kategori | Fitur |
 |---|---|
-| `primary` | `#001831` (Navy gelap) |
-| `primaryContainer` | `#002D54` |
-| `onPrimaryContainer` | `#7495C2` (Biru muda) |
-| `secondary` | `#505F76` |
-| `surface` | `#F7F9FB` (Abu terang) |
-| Font | Hanken Grotesk |
+| Transfer | Transfer dana, ganti rekening, transfer terjadwal, kelola favorit |
+| Pembayaran | QRIS scan, QRIS terima, tagihan, PLN, pulsa |
+| Keuangan | Deposito, kartu kredit, grafik keuangan, ekspor CSV |
+| Keamanan | Biometrik, OTP 2FA, reset password token, riwayat login |
+| Profil | Foto profil, notifikasi, bahasa ID/EN, mode gelap |
 
----
+## Setup Database
 
-## ✨ Fitur Utama
+1. `supabase/mobile_banking_latest_database.sql`
+2. `supabase/production_schema.sql`
+3. `supabase/features_schema.sql`
 
-- **Animasi masuk** pada setiap screen (fade + slide)
-- **Toggle saldo** tersembunyi di dashboard
-- **PIN input** visual dengan numpad
-- **Verifikasi rekening** dengan animasi loading
-- **History expandable** — tap transaksi untuk detail
-- **Search & filter** di halaman riwayat
-- **Konfirmasi logout** dengan dialog
-- **Receipt screen** dengan efek tear (robek struk)
-- Bottom navigation konsisten di semua screen
-- Format angka Rupiah dengan `intl` (`Rp 12.450.000`)
+## Catatan
 
----
-
-## 🔗 Alur Navigasi
-
-```
-LoginScreen
-    ├── RegisterScreen
-    └── DashboardScreen
-            ├── TransferScreen
-            │       ├── BankSelectScreen
-            │       └── AddRecipientScreen
-            │               └── ConfirmTransactionScreen
-            │                       └── ReceiptScreen
-            ├── HistoryScreen
-            └── ProfileScreen
-                    └── LoginScreen (Logout)
-```
-
----
-
-## 📝 Catatan
-
-- Data yang digunakan adalah **dummy data** statis (lihat `models.dart`)
-- Tidak ada state management eksternal — menggunakan `setState` bawaan Flutter
-- Siap dikembangkan lebih lanjut dengan **Provider**, **Riverpod**, atau **BLoC**
-- Siap diintegrasikan dengan **REST API** nyata Bank Mandiri
+- Beberapa fitur menggunakan fallback lokal jika tabel Supabase belum dibuat
+- OTP demo: kode ditampilkan di layar verifikasi
+- Reset password: kode dikirim ke notifikasi in-app

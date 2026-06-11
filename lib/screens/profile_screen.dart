@@ -1,10 +1,21 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/bank_service.dart';
+import '../services/profile_photo_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/notification_icon_button.dart';
+import 'financial_chart_screen.dart';
 import 'history_screen.dart';
+import 'language_screen.dart';
+import 'login_history_screen.dart';
 import 'login_screen.dart';
+import 'my_qris_screen.dart';
+import 'notification_screen.dart';
+import 'scheduled_transfer_screen.dart';
+import 'security_screen.dart';
 import 'transfer_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -20,6 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _phoneController =
       TextEditingController(text: '+62 812 3456 7890');
   bool _isSaving = false;
+  String? _photoBase64;
 
   @override
   void initState() {
@@ -28,7 +40,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user != null) {
       _emailController.text = user.email;
       _phoneController.text = user.phone ?? '';
+      _loadPhoto(user.id);
     }
+  }
+
+  Future<void> _loadPhoto(String userId) async {
+    final photo = await ProfilePhotoService.getPhoto(userId);
+    if (!mounted) return;
+    setState(() => _photoBase64 = photo);
+  }
+
+  Future<void> _pickPhoto() async {
+    final user = SessionManager.currentUser;
+    if (user == null) return;
+    final photo = await ProfilePhotoService.pickAndSave(user.id);
+    if (!mounted || photo == null) return;
+    setState(() => _photoBase64 = photo);
   }
 
   Future<void> _saveProfile() async {
@@ -107,7 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   newPin: newPin,
                 );
                 if (!mounted) return;
-                Navigator.pop(ctx);
+                Navigator.of(context, rootNavigator: true).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('PIN berhasil diperbarui.')),
                 );
@@ -162,16 +189,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: GoogleFonts.hankenGrotesk(
               fontWeight: FontWeight.w700, color: AppColors.primary),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.primary),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notifikasi belum tersedia untuk mode demo.')),
-              );
-            },
-          ),
+        actions: const [
+          NotificationIconButton(),
         ],
       ),
       body: ListView(
@@ -219,9 +238,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               width: 112,
               height: 112,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [AppColors.primary, AppColors.secondaryContainer],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -234,26 +253,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     shape: BoxShape.circle,
                     color: AppColors.secondaryContainer,
                   ),
-                  child: const Icon(Icons.person,
-                      size: 56, color: AppColors.primary),
+                  child: _photoBase64 != null
+                      ? ClipOval(
+                          child: Image.memory(
+                            base64Decode(_photoBase64!),
+                            width: 106,
+                            height: 106,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : const Icon(Icons.person,
+                          size: 56, color: AppColors.primary),
                 ),
               ),
             ),
             Positioned(
               bottom: 0,
               right: 0,
-              child: Container(
-                width: 34,
-                height: 34,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primary,
-                  boxShadow: [
-                    BoxShadow(color: Colors.black12, blurRadius: 4)
-                  ],
+              child: GestureDetector(
+                onTap: _pickPhoto,
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primary,
+                    boxShadow: [
+                      BoxShadow(color: Colors.black12, blurRadius: 4)
+                    ],
+                  ),
+                  child: const Icon(Icons.photo_camera,
+                      size: 18, color: Colors.white),
                 ),
-                child: const Icon(Icons.photo_camera,
-                    size: 18, color: Colors.white),
               ),
             ),
           ],
@@ -382,6 +413,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'title': 'Bahasa',
         'subtitle': 'Indonesia (ID)'
       },
+      {
+        'icon': Icons.qr_code_2,
+        'title': 'QRIS Saya',
+        'subtitle': 'Terima pembayaran'
+      },
+      {
+        'icon': Icons.schedule,
+        'title': 'Transfer Terjadwal',
+        'subtitle': 'Jadwalkan transfer'
+      },
+      {
+        'icon': Icons.bar_chart,
+        'title': 'Grafik Keuangan',
+        'subtitle': 'Ringkasan arus kas'
+      },
+      {
+        'icon': Icons.devices,
+        'title': 'Riwayat Login',
+        'subtitle': 'Perangkat & aktivitas'
+      },
     ];
 
     return Column(
@@ -416,9 +467,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final title = item['title'] as String;
           if (title == 'Ubah PIN') {
             _showChangePinDialog();
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('$title belum tersedia untuk mode demo.')),
+          } else if (title == 'Keamanan') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SecurityScreen()),
+            );
+          } else if (title == 'Notifikasi') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationScreen()),
+            );
+          } else if (title == 'Bahasa') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LanguageScreen()),
+            );
+          } else if (title == 'QRIS Saya') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MyQrisScreen()),
+            );
+          } else if (title == 'Transfer Terjadwal') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const ScheduledTransferScreen()),
+            );
+          } else if (title == 'Grafik Keuangan') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const FinancialChartScreen()),
+            );
+          } else if (title == 'Riwayat Login') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const LoginHistoryScreen()),
             );
           }
         },

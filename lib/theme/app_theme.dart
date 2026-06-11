@@ -119,6 +119,40 @@ class AppTheme {
       ),
     );
   }
+
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.onPrimaryContainer,
+        onPrimary: AppColors.primary,
+        primaryContainer: AppColors.primaryContainer,
+        onPrimaryContainer: AppColors.primaryFixed,
+        secondary: AppColors.secondaryContainer,
+        surface: Color(0xFF121820),
+        onSurface: Color(0xFFE8ECF0),
+        onSurfaceVariant: Color(0xFFB0B8C4),
+        outline: AppColors.outline,
+        outlineVariant: Color(0xFF3A4450),
+        error: AppColors.error,
+      ),
+      textTheme: GoogleFonts.hankenGroteskTextTheme(
+        ThemeData.dark().textTheme,
+      ),
+      scaffoldBackgroundColor: const Color(0xFF121820),
+      appBarTheme: AppBarTheme(
+        backgroundColor: const Color(0xFF121820),
+        elevation: 0,
+        titleTextStyle: GoogleFonts.hankenGrotesk(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primaryFixed,
+        ),
+        iconTheme: const IconThemeData(color: AppColors.primaryFixed),
+      ),
+    );
+  }
 }
 
 // Text Styles

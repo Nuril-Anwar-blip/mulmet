@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/bank_service.dart';
+import '../services/biometric_service.dart';
+import '../services/otp_service.dart';
+import '../services/settings_service.dart';
+import 'otp_verify_screen.dart';
 import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -40,6 +45,14 @@ class _LoginScreenState extends State<LoginScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
     _fadeController.forward();
+    _initializeBiometric();
+  }
+
+  Future<void> _initializeBiometric() async {
+    await SettingsService.load();
+    final canUse = await BiometricService.canUseLoginBiometric();
+    if (!mounted) return;
+    setState(() => _biometricEnabled = canUse);
   }
 
   @override
@@ -60,10 +73,31 @@ class _LoginScreenState extends State<LoginScreen>
 
     setState(() => _isLoading = true);
     try {
-      await BankService.login(
+      final user = await BankService.login(
         usernameOrEmail: credential,
         password: password,
       );
+      if (_biometricEnabled) {
+        await BiometricService.saveBiometricUser(user.id);
+      }
+
+      if (OtpService.isEnabled) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        final otp = await OtpService.generateOtp(user.id);
+        final verified = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OtpVerifyScreen(
+              userId: user.id,
+              otpCode: otp,
+              onVerified: () {},
+            ),
+          ),
+        );
+        if (verified != true) return;
+      }
+
       if (!mounted) return;
       setState(() => _isLoading = false);
       Navigator.pushReplacement(
@@ -84,21 +118,47 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _showForgotPassword() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Lupa Password'),
-        content: const Text(
-          'Untuk mode demo, reset password dilakukan lewat data Supabase atau admin aplikasi.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Mengerti'),
-          ),
-        ],
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
     );
+  }
+
+  Future<void> _loginWithBiometric() async {
+    setState(() => _isLoading = true);
+    try {
+      final userId = await BiometricService.getBiometricUserId();
+      if (userId == null) {
+        throw Exception('Login biometrik belum diaktifkan.');
+      }
+
+      final authenticated = await BiometricService.authenticate(
+        reason: 'Masuk ke Bank Mandiri',
+      );
+      if (!authenticated) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final restored = await BankService.restoreSessionForUser(userId);
+      if (!restored) {
+        throw Exception('Sesi biometrik kedaluwarsa. Login dengan password.');
+      }
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   @override
@@ -291,7 +351,7 @@ class _LoginScreenState extends State<LoginScreen>
           // Divider
           Row(
             children: [
-              Expanded(
+              const Expanded(
                   child: Divider(color: AppColors.surfaceVariant, height: 1)),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -304,7 +364,7 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ),
               ),
-              Expanded(
+              const Expanded(
                   child: Divider(color: AppColors.surfaceVariant, height: 1)),
             ],
           ),
@@ -524,7 +584,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   Widget _buildBiometricOption(IconData icon, String label) {
     return GestureDetector(
-      onTap: () => _showMessage('Biometrik belum aktif. Gunakan password untuk login.'),
+      onTap: _isLoading ? null : _loginWithBiometric,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(

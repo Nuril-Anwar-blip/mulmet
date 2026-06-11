@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/models.dart';
 import '../services/bank_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/notification_icon_button.dart';
 import '../widgets/bottom_nav.dart';
 
 class AddRecipientScreen extends StatefulWidget {
@@ -133,15 +134,7 @@ class _AddRecipientScreenState extends State<AddRecipientScreen>
               fontWeight: FontWeight.w600, color: AppColors.primary),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.primary),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notifikasi belum tersedia untuk mode demo.')),
-              );
-            },
-          ),
+          const NotificationIconButton(),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Container(

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/models.dart';
+import 'notification_service.dart';
 
 class SessionManager {
   static AppUser? currentUser;
@@ -122,7 +123,7 @@ class BankService {
         message.contains('Unauthorized') ||
         message.contains('42501')) {
       return Exception(
-        'Akses Supabase ditolak oleh RLS. Jalankan supabase/fix_demo_access.sql di Supabase SQL Editor.',
+        'Akses database ditolak. Jalankan supabase/production_schema.sql di Supabase SQL Editor.',
       );
     }
     return Exception(message.replaceFirst('Exception: ', ''));
@@ -131,6 +132,26 @@ class BankService {
   static Future<void> _persistSession(String userId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_sessionUserIdKey, userId);
+  }
+
+  static Future<bool> restoreSessionForUser(String userId) async {
+    try {
+      final userRow = await _client
+          .from('user')
+          .select()
+          .eq('id', userId)
+          .limit(1)
+          .maybeSingle();
+      if (userRow == null) return false;
+
+      final user = _userFromRow(Map<String, dynamic>.from(userRow));
+      final account = await getPrimaryAccount(user.id);
+      SessionManager.setSession(user, account);
+      await _persistSession(user.id);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   static Future<bool> restoreSession() async {
@@ -211,6 +232,12 @@ class BankService {
     SessionManager.setSession(user, account);
     await _persistSession(user.id);
     await _logLogin(user.id);
+    await NotificationService.push(
+      userId: user.id,
+      title: 'Login Berhasil',
+      body: 'Anda masuk ke aplikasi Bank Mandiri.',
+      category: 'Keamanan',
+    );
     return user;
   }
 
@@ -280,6 +307,7 @@ class BankService {
       accountNumber: row['accountnumber'] as String,
       balance: (row['balance'] as num).toDouble(),
       bankName: row['bankname'] as String,
+      label: row['label'] as String?,
     );
   }
 
@@ -302,6 +330,42 @@ class BankService {
 
     if (rows.isEmpty) return null;
     return _accountFromRow(Map<String, dynamic>.from(rows.first as Map));
+  }
+
+  static Future<List<BankAccount>> getAccounts(String userId) async {
+    try {
+      final rows =
+          await _client.from('account').select().eq('userid', userId);
+      return rows
+          .map((row) =>
+              _accountFromRow(Map<String, dynamic>.from(row as Map)))
+          .toList();
+    } catch (error) {
+      throw _friendlyError(error);
+    }
+  }
+
+  static Future<void> requestPasswordReset({required String email}) async {
+    try {
+      final rows = await _client
+          .from('user')
+          .select('id, email')
+          .eq('email', email.trim().toLowerCase())
+          .limit(1);
+      if (rows.isEmpty) {
+        throw Exception('Email tidak terdaftar.');
+      }
+      final userId = (rows.first as Map)['id'] as String;
+      await NotificationService.push(
+        userId: userId,
+        title: 'Reset Password',
+        body:
+            'Permintaan reset password diterima. Hubungi admin atau ubah password di profil.',
+        category: 'Keamanan',
+      );
+    } catch (error) {
+      throw _friendlyError(error);
+    }
   }
 
   static Future<List<FavoriteRecipient>> getFavorites(String userId) async {
@@ -634,6 +698,7 @@ class BankService {
             ? map[isCredit ? 'senderaccountid' : 'receiveraccountid'] as String?
             : '$counterpartyBank - $counterpartyNumber',
         recipientBank: counterpartyBank,
+        createdAt: createdAt,
       );
     }).toList();
   }
@@ -777,15 +842,10 @@ class BankService {
       throw Exception('Rekening sumber tidak ditemukan. Silakan login ulang.');
     }
 
-    late final VerifiedAccount receiver;
-    try {
-      receiver = await verifyRecipientAccount(
-        accountNumber: draft.receiverAccountNumber,
-        bankName: draft.receiverBankName,
-      );
-    } catch (error) {
-      rethrow;
-    }
+    final receiver = await verifyRecipientAccount(
+      accountNumber: draft.receiverAccountNumber,
+      bankName: draft.receiverBankName,
+    );
 
     late final Map<String, dynamic> row;
     try {
@@ -816,7 +876,7 @@ class BankService {
     }
 
     final createdAt = _transactionCreatedAt(Map<String, dynamic>.from(row));
-    return Transaction(
+    final transaction = Transaction(
       id: row['referencenumber'] as String,
       title: 'Transfer Keluar',
       subtitle:
@@ -829,6 +889,79 @@ class BankService {
       recipientName: draft.receiverName ?? receiver.ownerName,
       recipientAccount: '${receiver.bankName} - ${receiver.accountNumber}',
       recipientBank: receiver.bankName,
+      createdAt: createdAt,
+    );
+
+    final user = SessionManager.currentUser;
+    if (user != null) {
+      await NotificationService.push(
+        userId: user.id,
+        title: 'Transfer Berhasil',
+        body:
+            'Transfer ke ${draft.receiverName ?? receiver.ownerName} sebesar Rp ${draft.amount.toStringAsFixed(0)} berhasil.',
+        category: 'Transfer',
+      );
+    }
+
+    return transaction;
+  }
+
+  static Future<Transaction> createQrisPayment(QrisDraft draft) async {
+    final sender = SessionManager.currentAccount;
+    final user = SessionManager.currentUser;
+    if (sender == null || user == null) {
+      throw Exception('Rekening sumber tidak ditemukan. Silakan login ulang.');
+    }
+    if (sender.balance < draft.amount) {
+      throw Exception('Saldo tidak cukup untuk pembayaran QRIS.');
+    }
+
+    final reference = 'QRIS-${DateTime.now().millisecondsSinceEpoch}';
+    final now = DateTime.now().toIso8601String();
+
+    try {
+      final updatedAccount =
+          await _updateAccountBalance(sender, -draft.amount);
+      SessionManager.setSession(user, updatedAccount);
+
+      await _client.from('transaction').insert({
+        'id': _id('TX'),
+        'senderaccountid': sender.id,
+        'receiveraccountid': sender.id,
+        'amount': draft.amount,
+        'fee': 0,
+        'note': 'QRIS - ${draft.merchantName}',
+        'status': 'SUCCESS',
+        'referencenumber': reference,
+        'createdat': now,
+      });
+    } catch (error) {
+      throw _friendlyError(error);
+    }
+
+    final createdAt = DateTime.now();
+    await NotificationService.push(
+      userId: user.id,
+      title: 'Pembayaran QRIS Berhasil',
+      body:
+          'Pembayaran ke ${draft.merchantName} sebesar Rp ${draft.amount.toStringAsFixed(0)} berhasil.',
+      category: 'QRIS',
+    );
+
+    return Transaction(
+      id: reference,
+      title: 'Pembayaran QRIS',
+      subtitle:
+          '${_dateFormatter.format(createdAt)} • ${_timeFormatter.format(createdAt)}',
+      amount: draft.amount,
+      isCredit: false,
+      date: _dateFormatter.format(createdAt),
+      category: 'Belanja',
+      status: 'Berhasil',
+      recipientName: draft.merchantName,
+      recipientAccount: draft.merchantCode,
+      recipientBank: 'QRIS',
+      createdAt: createdAt,
     );
   }
 }

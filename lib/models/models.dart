@@ -30,6 +30,7 @@ class BankAccount {
   final String accountNumber;
   final double balance;
   final String bankName;
+  final String label;
 
   BankAccount({
     required this.id,
@@ -37,17 +38,32 @@ class BankAccount {
     required this.accountNumber,
     required this.balance,
     required this.bankName,
-  });
+    String? label,
+  }) : label = label ?? 'Tabungan $bankName';
 
   factory BankAccount.fromMap(Map<String, dynamic> map) {
+    final bankName = (map['bankName'] ?? map['bankname']) as String;
     return BankAccount(
       id: map['id'] as String,
-      userId: map['userId'] as String,
-      accountNumber: map['accountNumber'] as String,
+      userId: (map['userId'] ?? map['userid']) as String,
+      accountNumber: (map['accountNumber'] ?? map['accountnumber']) as String,
       balance: (map['balance'] as num).toDouble(),
-      bankName: map['bankName'] as String,
+      bankName: bankName,
+      label: (map['label'] as String?) ?? 'Tabungan $bankName',
     );
   }
+}
+
+class QrisDraft {
+  final String merchantName;
+  final String merchantCode;
+  final double amount;
+
+  QrisDraft({
+    required this.merchantName,
+    required this.merchantCode,
+    required this.amount,
+  });
 }
 
 class FavoriteRecipient {
@@ -119,6 +135,7 @@ class Transaction {
   final String? recipientName;
   final String? recipientAccount;
   final String? recipientBank;
+  final DateTime? createdAt;
 
   Transaction({
     required this.id,
@@ -132,6 +149,7 @@ class Transaction {
     this.recipientName,
     this.recipientAccount,
     this.recipientBank,
+    this.createdAt,
   });
 }
 
@@ -270,8 +288,4 @@ List<Bank> allBanks = [
   Bank(name: 'Citibank N.A.', code: '031'),
   Bank(name: 'Commonwealth Bank', code: '950'),
   Bank(name: 'Danamon', code: '011'),
-  Bank(name: 'Mandiri', code: '008'),
-  Bank(name: 'BCA', code: '014'),
-  Bank(name: 'BRI', code: '002'),
-  Bank(name: 'BNI', code: '009'),
 ];

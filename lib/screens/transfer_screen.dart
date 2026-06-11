@@ -5,6 +5,10 @@ import '../models/models.dart';
 import '../services/bank_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/notification_icon_button.dart';
+import 'account_select_screen.dart';
+import 'add_recipient_screen.dart';
+import 'favorites_screen.dart';
 import 'bank_select_screen.dart';
 import 'confirm_transaction_screen.dart';
 import 'history_screen.dart';
@@ -150,10 +154,13 @@ class _TransferScreenState extends State<TransferScreen> {
     return '**** ${accountNumber.substring(accountNumber.length - 4)}';
   }
 
-  void _showDemoMessage(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature belum tersedia untuk mode demo.')),
+  Future<void> _changeAccount() async {
+    final account = await Navigator.push<BankAccount>(
+      context,
+      MaterialPageRoute(builder: (_) => const AccountSelectScreen()),
     );
+    if (account == null || !mounted) return;
+    setState(() => _account = account);
   }
 
   @override
@@ -170,11 +177,8 @@ class _TransferScreenState extends State<TransferScreen> {
           style: GoogleFonts.hankenGrotesk(
               fontWeight: FontWeight.w600, color: AppColors.primary),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: AppColors.primary),
-            onPressed: () => _showDemoMessage('Notifikasi'),
-          ),
+        actions: const [
+          NotificationIconButton(),
         ],
       ),
       body: SingleChildScrollView(
@@ -309,7 +313,7 @@ class _TransferScreenState extends State<TransferScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton.icon(
-                        onPressed: () => _showDemoMessage('Ganti rekening'),
+                        onPressed: _changeAccount,
                         icon: Text(
                           'Ganti Rekening',
                           style: GoogleFonts.hankenGrotesk(
@@ -345,12 +349,18 @@ class _TransferScreenState extends State<TransferScreen> {
                   color: AppColors.secondary,
                   letterSpacing: 0.5),
             ),
-            Text(
-              'Lihat Semua',
-              style: GoogleFonts.hankenGrotesk(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FavoritesScreen()),
+              ),
+              child: Text(
+                'Lihat Semua',
+                style: GoogleFonts.hankenGrotesk(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary),
+              ),
             ),
           ],
         ),
@@ -360,7 +370,16 @@ class _TransferScreenState extends State<TransferScreen> {
           child: Row(
             children: [
               // New transfer
-              Column(
+              GestureDetector(
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AddRecipientScreen()),
+                  );
+                  _loadTransferData();
+                },
+                child: Column(
                 children: [
                   Container(
                     width: 56,
@@ -379,6 +398,7 @@ class _TransferScreenState extends State<TransferScreen> {
                   Text('Baru',
                       style: GoogleFonts.hankenGrotesk(fontSize: 12)),
                 ],
+              ),
               ),
               const SizedBox(width: 16),
               ..._favoriteItems.map((f) {
