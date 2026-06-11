@@ -82,6 +82,28 @@ class BankService {
     }
   }
 
+  static bool _isQrisTransaction(Map<String, dynamic> map) {
+    final reference = map['referencenumber']?.toString().toUpperCase() ?? '';
+    final note = map['note']?.toString().toUpperCase() ?? '';
+    return reference.startsWith('QRIS-') || note.startsWith('QRIS');
+  }
+
+  static String _qrisMerchantName(Map<String, dynamic> map) {
+    final note = map['note']?.toString().trim() ?? '';
+    final upperNote = note.toUpperCase();
+
+    if (upperNote.startsWith('QRIS - ')) {
+      final merchant = note.substring(7).trim();
+      if (merchant.isNotEmpty) return merchant;
+    }
+    if (upperNote.startsWith('QRIS-')) {
+      final merchant = note.substring(5).trim();
+      if (merchant.isNotEmpty) return merchant;
+    }
+
+    return 'Merchant QRIS';
+  }
+
   static bool _isMissingTableError(Object error) {
     final message = error.toString();
     return message.contains('PGRST205') ||
@@ -334,11 +356,9 @@ class BankService {
 
   static Future<List<BankAccount>> getAccounts(String userId) async {
     try {
-      final rows =
-          await _client.from('account').select().eq('userid', userId);
+      final rows = await _client.from('account').select().eq('userid', userId);
       return rows
-          .map((row) =>
-              _accountFromRow(Map<String, dynamic>.from(row as Map)))
+          .map((row) => _accountFromRow(Map<String, dynamic>.from(row as Map)))
           .toList();
     } catch (error) {
       throw _friendlyError(error);
@@ -675,29 +695,42 @@ class BankService {
 
     return rows.map((row) {
       final map = Map<String, dynamic>.from(row as Map);
-      final isCredit = map['receiveraccountid'] == accountId;
+      final isQris = _isQrisTransaction(map);
+      final isCredit = !isQris && map['receiveraccountid'] == accountId;
       final createdAt = _transactionCreatedAt(map);
       final sender = accountsById[map['senderaccountid']];
       final receiver = accountsById[map['receiveraccountid']];
       final counterparty = isCredit ? sender : receiver;
       final counterpartyBank = counterparty?['bankname'] as String?;
       final counterpartyNumber = counterparty?['accountnumber'] as String?;
+      final qrisMerchantName = isQris ? _qrisMerchantName(map) : null;
 
       return Transaction(
         id: _stringOrFallback(map['referencenumber'], map['id'] as String),
-        title: isCredit ? 'Transfer Masuk' : 'Transfer Keluar',
+        title: isQris
+            ? 'Pembayaran QRIS'
+            : isCredit
+                ? 'Transfer Masuk'
+                : 'Transfer Keluar',
         subtitle:
             '${_dateFormatter.format(createdAt)} • ${_timeFormatter.format(createdAt)}',
         amount: (map['amount'] as num?)?.toDouble() ?? 0,
         isCredit: isCredit,
         date: _dateFormatter.format(createdAt),
-        category: isCredit ? 'Pemasukan' : 'Transfer',
+        category: isQris
+            ? 'Belanja'
+            : isCredit
+                ? 'Pemasukan'
+                : 'Transfer',
         status: _transactionStatus(map['status']),
-        recipientName: counterpartyBank,
-        recipientAccount: counterpartyBank == null || counterpartyNumber == null
-            ? map[isCredit ? 'senderaccountid' : 'receiveraccountid'] as String?
-            : '$counterpartyBank - $counterpartyNumber',
-        recipientBank: counterpartyBank,
+        recipientName: qrisMerchantName ?? counterpartyBank,
+        recipientAccount: isQris
+            ? 'QRIS'
+            : counterpartyBank == null || counterpartyNumber == null
+                ? map[isCredit ? 'senderaccountid' : 'receiveraccountid']
+                    as String?
+                : '$counterpartyBank - $counterpartyNumber',
+        recipientBank: isQris ? 'QRIS' : counterpartyBank,
         createdAt: createdAt,
       );
     }).toList();
@@ -920,8 +953,7 @@ class BankService {
     final now = DateTime.now().toIso8601String();
 
     try {
-      final updatedAccount =
-          await _updateAccountBalance(sender, -draft.amount);
+      final updatedAccount = await _updateAccountBalance(sender, -draft.amount);
       SessionManager.setSession(user, updatedAccount);
 
       await _client.from('transaction').insert({

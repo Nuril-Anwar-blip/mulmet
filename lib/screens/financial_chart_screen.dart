@@ -20,6 +20,17 @@ class _FinancialChartScreenState extends State<FinancialChartScreen> {
   bool _isLoading = true;
   final _formatter =
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+  final _compactFormatter =
+      NumberFormat.compactCurrency(locale: 'id_ID', symbol: 'Rp ');
+
+  static const _categoryColors = [
+    Color(0xFF001831),
+    Color(0xFF0F766E),
+    Color(0xFFD97706),
+    Color(0xFF7C3AED),
+    Color(0xFFDC2626),
+    Color(0xFF2563EB),
+  ];
 
   @override
   void initState() {
@@ -30,8 +41,7 @@ class _FinancialChartScreenState extends State<FinancialChartScreen> {
   Future<void> _load() async {
     final account = SessionManager.currentAccount;
     setState(() => _isLoading = true);
-    final transactions =
-        await BankService.getTransactions(account?.id ?? '');
+    final transactions = await BankService.getTransactions(account?.id ?? '');
     if (!mounted) return;
     setState(() {
       _summary = FeatureService.buildSummary(transactions);
@@ -53,11 +63,17 @@ class _FinancialChartScreenState extends State<FinancialChartScreen> {
               : ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
-                    _buildSummaryCard('Pemasukan',
-                        _formatter.format(_summary!.totalIncome), AppColors.emerald),
+                    _buildSummaryCard(
+                      'Pemasukan',
+                      _formatter.format(_summary!.totalIncome),
+                      AppColors.emerald,
+                    ),
                     const SizedBox(height: 10),
-                    _buildSummaryCard('Pengeluaran',
-                        _formatter.format(_summary!.totalExpense), AppColors.error),
+                    _buildSummaryCard(
+                      'Pengeluaran',
+                      _formatter.format(_summary!.totalExpense),
+                      AppColors.error,
+                    ),
                     const SizedBox(height: 10),
                     _buildSummaryCard(
                         'Arus Bersih',
@@ -70,45 +86,7 @@ class _FinancialChartScreenState extends State<FinancialChartScreen> {
                         style: GoogleFonts.hankenGrotesk(
                             fontWeight: FontWeight.w700, fontSize: 16)),
                     const SizedBox(height: 16),
-                    SizedBox(
-                      height: 220,
-                      child: _summary!.expenseByCategory.isEmpty
-                          ? Center(
-                              child: Text('Belum ada data pengeluaran.',
-                                  style: GoogleFonts.hankenGrotesk(
-                                      color: AppColors.secondary)),
-                            )
-                          : PieChart(
-                              PieChartData(
-                                sectionsSpace: 2,
-                                centerSpaceRadius: 40,
-                                sections: _summary!.expenseByCategory.entries
-                                    .map((e) {
-                                  final colors = [
-                                    AppColors.primary,
-                                    AppColors.tertiaryContainer,
-                                    AppColors.secondary,
-                                    AppColors.emerald,
-                                    AppColors.amber,
-                                  ];
-                                  final i = _summary!.expenseByCategory.keys
-                                      .toList()
-                                      .indexOf(e.key);
-                                  return PieChartSectionData(
-                                    value: e.value,
-                                    title: e.key,
-                                    color: colors[i % colors.length],
-                                    radius: 60,
-                                    titleStyle: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                    ),
+                    _buildExpenseChart(),
                   ],
                 ),
     );
@@ -119,8 +97,15 @@ class _FinancialChartScreenState extends State<FinancialChartScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -131,6 +116,165 @@ class _FinancialChartScreenState extends State<FinancialChartScreen> {
           Text(value,
               style: GoogleFonts.hankenGrotesk(
                   fontWeight: FontWeight.w700, color: color, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExpenseChart() {
+    final entries = _summary!.expenseByCategory.entries
+        .where((entry) => entry.value > 0)
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final totalExpense = entries.fold<double>(0, (sum, e) => sum + e.value);
+
+    if (entries.isEmpty || totalExpense <= 0) {
+      return Container(
+        height: 180,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.outlineVariant),
+        ),
+        child: Text(
+          'Belum ada data pengeluaran.',
+          style: GoogleFonts.hankenGrotesk(color: AppColors.secondary),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.outlineVariant.withValues(alpha: 0.7),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 190,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                PieChart(
+                  PieChartData(
+                    sectionsSpace: entries.length == 1 ? 0 : 3,
+                    centerSpaceRadius: 54,
+                    startDegreeOffset: -90,
+                    sections: [
+                      for (var i = 0; i < entries.length; i++)
+                        PieChartSectionData(
+                          value: entries[i].value,
+                          title: '',
+                          color: _categoryColors[i % _categoryColors.length],
+                          radius: 34,
+                          showTitle: false,
+                        ),
+                    ],
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Total',
+                      style: GoogleFonts.hankenGrotesk(
+                        color: AppColors.secondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _compactFormatter.format(totalExpense),
+                      style: GoogleFonts.hankenGrotesk(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...[
+            for (var i = 0; i < entries.length; i++)
+              _buildCategoryRow(
+                entries[i].key,
+                entries[i].value,
+                totalExpense,
+                _categoryColors[i % _categoryColors.length],
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryRow(
+    String label,
+    double value,
+    double total,
+    Color color,
+  ) {
+    final percentage = total == 0 ? 0 : (value / total * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.hankenGrotesk(
+                color: AppColors.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '$percentage%',
+            style: GoogleFonts.hankenGrotesk(
+              color: AppColors.secondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                _formatter.format(value),
+                style: GoogleFonts.hankenGrotesk(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
